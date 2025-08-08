@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="360" viewBox="0 0 960 360">
+  <defs>
+    <style>
+      .title { font: 700 28px 'Segoe UI', Arial, sans-serif; fill: #0f172a; }
+      .text { font: 500 16px 'Segoe UI', Arial, sans-serif; fill: #0f172a; }
+      .small { font: 400 14px 'Segoe UI', Arial, sans-serif; fill: #334155; }
+      .node { fill: #f1f5f9; stroke: #64748b; stroke-width: 2; rx: 12; }
+      .btn { fill: #e2e8f0; stroke: #475569; stroke-width: 2; rx: 8; }
+      .arrow { stroke: #475569; stroke-width: 2.5; fill: none; marker-end: url(#arrowhead); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <text x="30" y="42" class="title">GoodRobot — выбор роли</text>
+  <text x="30" y="74" class="small">Пользователь запускает бота и выбирает один из сценариев</text>
+
+  <!-- Start node -->
+  <rect x="60" y="120" width="160" height="70" class="node"/>
+  <text x="90" y="162" class="text">/start</text>
+  <text x="82" y="185" class="small">Регистрация в БД</text>
+
+  <!-- Buttons -->
+  <rect x="300" y="110" width="180" height="48" class="btn"/>
+  <text x="325" y="140" class="text">Я клиент</text>
+
+  <rect x="300" y="170" width="180" height="48" class="btn"/>
+  <text x="324" y="200" class="text">Я мастер</text>
+
+  <rect x="300" y="230" width="180" height="48" class="btn"/>
+  <text x="320" y="260" class="text">Я партнёр</text>
+
+  <!-- Arrows from /start -->
+  <line x1="220" y1="155" x2="300" y2="134" class="arrow"/>
+  <line x1="220" y1="155" x2="300" y2="194" class="arrow"/>
+  <line x1="220" y1="155" x2="300" y2="254" class="arrow"/>
+
+  <!-- Client flow -->
+  <rect x="540" y="110" width="180" height="48" class="node"/>
+  <text x="565" y="140" class="text">Создание заявки</text>
+  <text x="548" y="165" class="small">категория → район → адрес → описание</text>
+
+  <line x1="480" y1="134" x2="540" y2="134" class="arrow"/>
+
+  <!-- Master flow -->
+  <rect x="540" y="170" width="180" height="48" class="node"/>
+  <text x="560" y="200" class="text">Районы мастера</text>
+  <text x="548" y="225" class="small">мультивыбор + Готово/Сброс</text>
+
+  <line x1="480" y1="194" x2="540" y2="194" class="arrow"/>
+
+  <!-- Partner (future) -->
+  <rect x="540" y="230" width="180" height="48" class="node"/>
+  <text x="565" y="260" class="text">Партнёр (WIP)</text>
+  <line x1="480" y1="254" x2="540" y2="254" class="arrow"/>
+</svg>

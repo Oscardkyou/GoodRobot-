@@ -6,6 +6,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
+    Index,
     String,
     func,
 )
@@ -16,6 +17,9 @@ from .base import Base
 
 class Bid(Base):
     __tablename__ = "bids"
+    __table_args__ = (
+        Index("ix_bids_order_created_at", "order_id", "created_at"),
+    )
 
     id = Column(BigInteger, primary_key=True, index=True)
     order_id = Column(BigInteger, ForeignKey("orders.id"), nullable=False)

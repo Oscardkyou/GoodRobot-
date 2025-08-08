@@ -1,5 +1,6 @@
 """SQLAlchemy model for User."""
 from sqlalchemy import BigInteger, Column, DateTime, Enum, Float, String, func
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
 from .base import Base
@@ -12,6 +13,7 @@ class User(Base):
     role = Column(Enum('client', 'master', 'partner', 'admin', name='user_role_enum'), default='client', nullable=False)
     name = Column(String)
     phone = Column(String, unique=True)
+    zones = Column(ARRAY(String))
     rating_avg = Column(Float, default=0.0)
     created_at = Column(DateTime, server_default=func.now())
 

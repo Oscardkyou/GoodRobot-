@@ -5,6 +5,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     String,
     Text,
     func,
@@ -17,6 +18,9 @@ from .base import Base
 
 class Order(Base):
     __tablename__ = "orders"
+    __table_args__ = (
+        Index("ix_orders_category_zone_status", "category", "zone", "status"),
+    )
 
     id = Column(BigInteger, primary_key=True, index=True)
     client_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
@@ -40,6 +44,7 @@ class Order(Base):
     client = relationship("User", back_populates="orders")
     bids = relationship("Bid", back_populates="order")
     rating = relationship("Rating", back_populates="order", uselist=False)
+    payout = relationship("Payout", back_populates="order", uselist=False)
 
     def __repr__(self):
         return f"<Order(id={self.id}, client_id={self.client_id}, status='{self.status}')>"

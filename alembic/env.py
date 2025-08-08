@@ -1,9 +1,23 @@
 from logging.config import fileConfig
+import os
+import sys
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy.engine import URL
 
 from alembic import context
+
+# Ensure project root is on sys.path
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+# Import settings and models
+from core.config import Settings  # type: ignore
+from app.models.base import Base  # type: ignore
+# Import all models so that metadata is aware of tables for autogenerate
+from app.models import user, order, bid, rating, partner, payout  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -14,11 +28,17 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = None
+# Use project's database URL, converting async driver to sync for Alembic
+settings = Settings()
+db_url = settings.database_url
+if db_url.startswith("postgresql+asyncpg"):
+    db_url = db_url.replace("postgresql+asyncpg", "postgresql+psycopg2")
+
+# Set URL into Alembic config
+config.set_main_option("sqlalchemy.url", db_url)
+
+# Target metadata for autogenerate
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
