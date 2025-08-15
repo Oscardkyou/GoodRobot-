@@ -29,6 +29,12 @@ async def main() -> None:  # pragma: no cover
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_my_commands([
         BotCommand(command="start", description="Начать работу"),
+        BotCommand(command="menu", description="Главное меню"),
+        BotCommand(command="partner_dashboard", description="Партнерский дашборд"),
+        BotCommand(command="partner_link", description="Реферальная ссылка"),
+        BotCommand(command="partner_stats", description="Статистика партнера"),
+        BotCommand(command="partner_payouts", description="История выплат"),
+        BotCommand(command="help_partner", description="Помощь для партнеров"),
     ])
 
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())

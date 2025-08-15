@@ -16,3 +16,8 @@ class MasterSetup(StatesGroup):
 
 class BidCreate(StatesGroup):
     price = State()
+
+
+class PartnerSetup(StatesGroup):
+    payout_request = State()
+    stats_filter = State()

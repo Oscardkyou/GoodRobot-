@@ -1,5 +1,5 @@
 """SQLAlchemy model for User."""
-from sqlalchemy import BigInteger, Column, DateTime, Enum, Float, String, func
+from sqlalchemy import BigInteger, Column, DateTime, Enum, Float, String, ForeignKey, func
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
@@ -15,14 +15,22 @@ class User(Base):
     phone = Column(String, unique=True)
     zones = Column(ARRAY(String))
     rating_avg = Column(Float, default=0.0)
+    referrer_id = Column(BigInteger, ForeignKey('users.id'))
     created_at = Column(DateTime, server_default=func.now())
 
-        # Relationships
+    # Relationships
     orders = relationship("Order", back_populates="client")
     bids = relationship("Bid", back_populates="master")
     ratings_given = relationship("Rating", foreign_keys="[Rating.rater_id]", back_populates="rater")
     ratings_received = relationship("Rating", foreign_keys="[Rating.ratee_id]", back_populates="ratee")
     partner_details = relationship("Partner", back_populates="user", uselist=False)
+    referrer = relationship(
+        "User",
+        back_populates="referred_users",
+        remote_side=[id],
+        foreign_keys=[referrer_id],
+    )
+    referred_users = relationship("User", back_populates="referrer")
 
     def __repr__(self):
         return f"<User(id={self.id}, tg_id={self.tg_id}, role='{self.role}')>"

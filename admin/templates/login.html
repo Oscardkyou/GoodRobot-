@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Вход - GoodRobot Админ-панель{% endblock %}
+
+{% block auth_content %}
+<div class="text-center mb-4">
+    <h1 class="h3 mb-3 fw-normal">GoodRobot</h1>
+    <p class="text-muted">Панель администратора</p>
+</div>
+
+<div class="alert alert-danger d-none" id="login-error">
+    Неверное имя пользователя или пароль
+</div>
+
+<form id="login-form">
+    <div class="form-floating">
+        <input type="text" class="form-control" id="username" name="username" placeholder="Имя пользователя" required>
+        <label for="username">Имя пользователя</label>
+    </div>
+    <div class="form-floating">
+        <input type="password" class="form-control" id="password" name="password" placeholder="Пароль" required>
+        <label for="password">Пароль</label>
+    </div>
+    
+    <button class="w-100 btn btn-lg btn-primary" type="submit">Войти</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('token', data.access_token);
+                    window.location.href = '/';
+                } else {
+                    loginError.classList.remove('d-none');
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                loginError.classList.remove('d-none');
+            }
+        });
+    });
+</script>
+{% endblock %}

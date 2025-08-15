@@ -1,5 +1,12 @@
 """Inline keyboards for bot flows."""
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+
+
+def add_back_button(keyboard: InlineKeyboardMarkup, callback_data: str = "back") -> InlineKeyboardMarkup:
+    """Добавляет кнопку 'Назад' к любой клавиатуре."""
+    keyboard_dict = keyboard.model_dump()
+    keyboard_dict['inline_keyboard'].append([InlineKeyboardButton(text="« Назад", callback_data=callback_data)])
+    return InlineKeyboardMarkup.model_validate(keyboard_dict)
 
 
 def role_keyboard() -> InlineKeyboardMarkup:
@@ -22,7 +29,7 @@ CATEGORIES = [
 ]
 
 
-def categories_keyboard() -> InlineKeyboardMarkup:
+def categories_keyboard(with_back: bool = True) -> InlineKeyboardMarkup:
     rows = []
     row = []
     for i, name in enumerate(CATEGORIES, start=1):
@@ -32,10 +39,14 @@ def categories_keyboard() -> InlineKeyboardMarkup:
             row = []
     if row:
         rows.append(row)
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
+    
+    if with_back:
+        return add_back_button(keyboard, "back:main")
+    return keyboard
 
 
-def zones_keyboard_master_full(selected: list[str] | None = None) -> InlineKeyboardMarkup:
+def zones_keyboard_master_full(selected: list[str] | None = None, with_back: bool = True) -> InlineKeyboardMarkup:
     selected = selected or []
     sel = set(selected)
     rows = []
@@ -54,10 +65,14 @@ def zones_keyboard_master_full(selected: list[str] | None = None) -> InlineKeybo
             InlineKeyboardButton(text="Сброс", callback_data="mzone:clear"),
         ]
     )
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
+    
+    if with_back:
+        return add_back_button(keyboard, "back:master_setup")
+    return keyboard
 
 
-def zones_keyboard_master() -> InlineKeyboardMarkup:
+def zones_keyboard_master(with_back: bool = True) -> InlineKeyboardMarkup:
     rows = []
     row = []
     for i, name in enumerate(ZONES, start=1):
@@ -67,7 +82,11 @@ def zones_keyboard_master() -> InlineKeyboardMarkup:
             row = []
     if row:
         rows.append(row)
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
+    
+    if with_back:
+        return add_back_button(keyboard, "back:master_setup")
+    return keyboard
 
 
 ZONES = [
@@ -81,7 +100,7 @@ ZONES = [
 ]
 
 
-def zones_keyboard() -> InlineKeyboardMarkup:
+def zones_keyboard(with_back: bool = True) -> InlineKeyboardMarkup:
     rows = []
     row = []
     for i, name in enumerate(ZONES, start=1):
@@ -91,11 +110,15 @@ def zones_keyboard() -> InlineKeyboardMarkup:
             row = []
     if row:
         rows.append(row)
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
+    
+    if with_back:
+        return add_back_button(keyboard, "back:order_create")
+    return keyboard
 
 
-def confirm_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
+def confirm_keyboard(with_back: bool = False) -> InlineKeyboardMarkup:
+    keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="Подтвердить", callback_data="confirm:yes"),
@@ -103,3 +126,36 @@ def confirm_keyboard() -> InlineKeyboardMarkup:
             ]
         ]
     )
+    
+    if with_back:
+        return add_back_button(keyboard, "back:confirm")
+    return keyboard
+
+
+def main_menu_keyboard() -> ReplyKeyboardMarkup:
+    """Основное меню бота с кнопками для всех ролей."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📝 Создать заказ"), KeyboardButton(text="📋 Мои заказы")],
+            [KeyboardButton(text="👨‍🔧 Профиль"), KeyboardButton(text="🔍 Поиск")],
+            [KeyboardButton(text="❓ Помощь")],
+        ],
+        resize_keyboard=True
+    )
+
+
+def partner_dashboard_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для партнерского дашборда."""
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📊 Статистика", callback_data="partner:stats"),
+                InlineKeyboardButton(text="💰 Выплаты", callback_data="partner:payouts"),
+            ],
+            [
+                InlineKeyboardButton(text="🔗 Реферальная ссылка", callback_data="partner:link"),
+                InlineKeyboardButton(text="👥 Рефералы", callback_data="partner:referrals"),
+            ],
+        ]
+    )
+    return keyboard
