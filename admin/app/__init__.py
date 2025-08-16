@@ -39,49 +39,20 @@ def create_app():
     
     # Определяем маршруты
     @app.get("/", response_class=HTMLResponse)
-    async def root(request: Request, current_admin=Depends(get_current_admin)):
+    async def root(request: Request):
         """Главная страница админ-панели (дашборд)"""
-        return templates.TemplateResponse(
-            "dashboard.html", 
-            {"request": request, "current_user": current_admin}
-        )
+        return templates.TemplateResponse("dashboard.html", {"request": request, "page_type": "private"})
 
     @app.get("/login", response_class=HTMLResponse)
     async def login_page(request: Request):
         """Страница входа в админ-панель"""
-        return templates.TemplateResponse("login.html", {"request": request})
-
-    @app.post("/token")
-    async def login_for_access_token(
-        form_data: OAuth2PasswordRequestForm = Depends(),
-        db: AsyncSession = Depends(get_db)
-    ):
-        """Эндпоинт для получения токена доступа"""
-        user = await authenticate_user(form_data.username, form_data.password, db)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Неверное имя пользователя или пароль",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        # Обновляем время последнего входа
-        user.last_login = timedelta(minutes=0)
-        await db.commit()
-        
-        # Создаем токен доступа
-        access_token_expires = timedelta(minutes=30)  # Устанавливаем время жизни токена в 30 минут
-        access_token = create_access_token(
-            data={"sub": user.username, "scopes": ["admin"]},
-            expires_delta=access_token_expires
-        )
-        
-        return {"access_token": access_token, "token_type": "bearer"}
+        return templates.TemplateResponse("login.html", {"request": request, "page_type": "public"})
 
     @app.get("/logout")
     async def logout():
         """Выход из админ-панели"""
         response = RedirectResponse(url="/login")
+        # В будущем здесь можно будет очищать сессию
         return response
         
     return app

@@ -118,7 +118,7 @@
     </style>
 </head>
 <body>
-    {% if current_user %}
+    {% if page_type == 'private' %}
     <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
         <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6" href="/">GoodRobot Админ</a>
         <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
@@ -215,17 +215,31 @@
     
     <!-- Общие скрипты для админ-панели -->
     <script>
-        // Функция для проверки токена
-        function checkToken() {
-            const token = localStorage.getItem('token');
-            if (!token && window.location.pathname !== '/login') {
-                window.location.href = '/login';
-                return false;
+        document.addEventListener('DOMContentLoaded', function() {
+            const pageType = "{{ page_type }}";
+
+            // Если это приватная страница, проверяем авторизацию
+            if (pageType === 'private') {
+                const isLoggedIn = sessionStorage.getItem('isLoggedIn');
+                if (isLoggedIn !== 'true') {
+                    // Если не авторизован, перенаправляем на страницу входа
+                    window.location.href = '/login';
+                }
             }
-            return true;
-        }
-        
-        // Функция для создания уведомления
+
+            const logoutLink = document.getElementById('logout-link');
+            if (logoutLink) {
+                logoutLink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    // Очищаем sessionStorage и перенаправляем на логин
+                    sessionStorage.removeItem('isLoggedIn');
+                    sessionStorage.removeItem('username');
+                    window.location.href = '/login';
+                });
+            }
+        });
+
+        // Функция для создания уведомления (оставляем, может пригодиться)
         function showNotification(message, type = 'success') {
             const toastContainer = document.querySelector('.toast-container');
             const toastId = 'toast-' + Date.now();
@@ -246,28 +260,10 @@
             const toast = new bootstrap.Toast(toastElement);
             toast.show();
             
-            // Автоматически удаляем элемент после скрытия
             toastElement.addEventListener('hidden.bs.toast', function() {
                 toastElement.remove();
             });
         }
-        
-        // Обработчик выхода из системы
-        document.addEventListener('DOMContentLoaded', function() {
-            const logoutLink = document.getElementById('logout-link');
-            if (logoutLink) {
-                logoutLink.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    localStorage.removeItem('token');
-                    window.location.href = '/login';
-                });
-            }
-            
-            // Проверяем токен при загрузке страницы
-            if (window.location.pathname !== '/login') {
-                checkToken();
-            }
-        });
     </script>
     
     <!-- Дополнительные скрипты для конкретных страниц -->

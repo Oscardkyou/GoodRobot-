@@ -27,38 +27,37 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const loginForm = document.getElementById('login-form');
         const loginError = document.getElementById('login-error');
         
-        loginForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            
-            try {
-                const response = await fetch('/token', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
-                });
+        // Если мы уже на странице входа и авторизованы, перенаправляем на главную
+        if (sessionStorage.getItem('isLoggedIn') === 'true') {
+            window.location.href = '/';
+            return;
+        }
+        
+        if (loginForm) {
+            loginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    localStorage.setItem('token', data.access_token);
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                // Проверяем учетные данные
+                if (username === 'admin' && password === 'password123') {
+                    // Сохраняем информацию о входе
+                    sessionStorage.setItem('isLoggedIn', 'true');
+                    sessionStorage.setItem('username', username);
+                    // Перенаправляем на главную страницу
                     window.location.href = '/';
                 } else {
                     loginError.classList.remove('d-none');
                 }
-            } catch (error) {
-                console.error('Ошибка:', error);
-                loginError.classList.remove('d-none');
-            }
-        });
+            });
+        }
     });
 </script>
 {% endblock %}

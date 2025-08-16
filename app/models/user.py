@@ -1,5 +1,5 @@
 """SQLAlchemy model for User."""
-from sqlalchemy import BigInteger, Column, DateTime, Enum, Float, String, ForeignKey, func
+from sqlalchemy import BigInteger, Column, DateTime, Enum, Float, String, ForeignKey, func, Boolean
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
@@ -17,6 +17,12 @@ class User(Base):
     rating_avg = Column(Float, default=0.0)
     referrer_id = Column(BigInteger, ForeignKey('users.id'))
     created_at = Column(DateTime, server_default=func.now())
+    
+    # Поля для админ-панели
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    email = Column(String, unique=True, index=True)
+    is_active = Column(Boolean, default=True)
 
     # Relationships
     orders = relationship("Order", back_populates="client")
