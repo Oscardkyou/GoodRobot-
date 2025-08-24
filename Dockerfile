@@ -1,0 +1,28 @@
+# Base image
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# System deps (libpq for Postgres client libs). Keep minimal.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev build-essential curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python deps first (better layer caching)
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip wheel \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Copy project
+COPY . .
+
+# Make entrypoints executable (if present)
+RUN chmod +x scripts/*.sh || true
+
+EXPOSE 8000
+
+# Default command (overridden by docker-compose)
+CMD ["bash", "-lc", "python -m app.bot.main"]

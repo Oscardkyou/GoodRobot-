@@ -118,7 +118,7 @@
     </style>
 </head>
 <body>
-    {% if page_type == 'private' %}
+    {% if (page_type|default('private')) == 'private' %}
     <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
         <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6" href="/">GoodRobot Админ</a>
         <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
@@ -144,9 +144,15 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link {% if '/users' in request.path %}active{% endif %}" href="/users">
+                            <a class="nav-link {% if '/users' in request.path and not '/masters' in request.path %}active{% endif %}" href="/users">
                                 <i class="bi bi-people"></i>
                                 Пользователи
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/masters' in request.path %}active{% endif %}" href="/masters">
+                                <i class="bi bi-tools"></i>
+                                Мастера
                             </a>
                         </li>
                         <li class="nav-item">
@@ -216,13 +222,12 @@
     <!-- Общие скрипты для админ-панели -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const pageType = "{{ page_type }}";
+            const pageType = "{{ page_type|default('private') }}";
 
-            // Если это приватная страница, проверяем авторизацию
+            // Если это приватная страница, проверяем наличие JWT токена
             if (pageType === 'private') {
-                const isLoggedIn = sessionStorage.getItem('isLoggedIn');
-                if (isLoggedIn !== 'true') {
-                    // Если не авторизован, перенаправляем на страницу входа
+                const token = localStorage.getItem('token');
+                if (!token) {
                     window.location.href = '/login';
                 }
             }
@@ -231,13 +236,20 @@
             if (logoutLink) {
                 logoutLink.addEventListener('click', function(e) {
                     e.preventDefault();
-                    // Очищаем sessionStorage и перенаправляем на логин
-                    sessionStorage.removeItem('isLoggedIn');
-                    sessionStorage.removeItem('username');
+                    // Очищаем токен и перенаправляем на логин
+                    localStorage.removeItem('token');
                     window.location.href = '/login';
                 });
             }
         });
+
+        // Вспомогательная функция для запросов с авторизацией
+        async function authFetch(url, options = {}) {
+            const token = localStorage.getItem('token');
+            const headers = Object.assign({}, options.headers || {}, token ? { 'Authorization': `Bearer ${token}` } : {});
+            const opts = Object.assign({}, options, { headers });
+            return fetch(url, opts);
+        }
 
         // Функция для создания уведомления (оставляем, может пригодиться)
         function showNotification(message, type = 'success') {

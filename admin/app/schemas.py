@@ -27,7 +27,9 @@ class UserBase(BaseModel):
     is_active: bool = True
 
 class UserCreate(UserBase):
-    password: str
+    password: Optional[str] = None
+    telegram_id: Optional[int] = None
+    zones: Optional[List[int]] = None
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -39,8 +41,10 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: int
+    telegram_id: Optional[int] = None
     created_at: datetime
     last_login: Optional[datetime] = None
+    zones: Optional[List[int]] = None
 
     class Config:
         from_attributes = True

@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: goodrobot-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-masterbot}
+      POSTGRES_USER: ${POSTGRES_USER:-masterbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-masterbot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-masterbot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: goodrobot-bot
+    command: ["bash", "-lc", "scripts/entrypoint_bot.sh"]
+    env_file:
+      - .env
+    environment:
+      # В сети compose доступ к БД по имени сервиса
+      POSTGRES_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: goodrobot-admin
+    command: ["bash", "-lc", "scripts/entrypoint_admin.sh"]
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      ADMIN_PORT: ${ADMIN_PORT:-8080}
+    ports:
+      - "${ADMIN_PORT:-8080}:${ADMIN_PORT:-8080}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

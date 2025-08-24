@@ -71,9 +71,9 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Проверяем авторизацию
-        const isLoggedIn = sessionStorage.getItem('isLoggedIn');
-        console.log('Проверка авторизации, isLoggedIn:', isLoggedIn);
-        if (isLoggedIn !== 'true') {
+        const token = localStorage.getItem('token');
+        console.log('Проверка авторизации, token:', token ? 'есть' : 'нет');
+        if (!token) {
             console.log('Пользователь не авторизован, перенаправляем на страницу входа');
             window.location.href = '/login';
         } else {

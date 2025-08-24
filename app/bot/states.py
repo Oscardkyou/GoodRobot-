@@ -6,6 +6,7 @@ class OrderCreate(StatesGroup):
     category = State()
     zone = State()
     address = State()
+    media = State()
     description = State()
     confirm = State()
 

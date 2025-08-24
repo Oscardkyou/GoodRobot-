@@ -132,13 +132,39 @@ def confirm_keyboard(with_back: bool = False) -> InlineKeyboardMarkup:
     return keyboard
 
 
+def media_keyboard(with_back: bool = True) -> InlineKeyboardMarkup:
+    """Клавиатура для шага загрузки медиа (фото/видео)."""
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Готово", callback_data="media:done"),
+                InlineKeyboardButton(text="Пропустить", callback_data="media:skip"),
+            ]
+        ]
+    )
+    if with_back:
+        return add_back_button(keyboard, "back:address")
+    return keyboard
+
+
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
-    """Основное меню бота с кнопками для всех ролей."""
+    """Основное меню бота с кнопками для клиентов."""
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="📝 Создать заказ"), KeyboardButton(text="📋 Мои заказы")],
             [KeyboardButton(text="👨‍🔧 Профиль"), KeyboardButton(text="🔍 Поиск")],
             [KeyboardButton(text="❓ Помощь")],
+        ],
+        resize_keyboard=True
+    )
+
+
+def master_main_menu_keyboard() -> ReplyKeyboardMarkup:
+    """Меню мастера с основными действиями."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📍 Заказы поблизости"), KeyboardButton(text="💰 Мои ставки")],
+            [KeyboardButton(text="⚙️ Настройки"), KeyboardButton(text="❓ Помощь")],
         ],
         resize_keyboard=True
     )

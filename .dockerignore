@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pytest_cache/
+*.coverage
+.coverage
+htmlcov/
+
+# Virtual env
+venv/
+.env
+.env.local
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Logs & data
+*.log
+*.sqlite3
+
+# Node
+node_modules/
+
+# Misc
+.DS_Store
+
+# Docs & tests (optional to reduce image size)
+docs/
+tests/

@@ -1,4 +1,5 @@
 """Partner role handlers - referral system and partner dashboard."""
+import logging
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -10,6 +11,9 @@ from app.bot.states import PartnerSetup
 from app.models import Partner, User, Payout, Order
 from core.db import SessionFactory
 from app.bot.keyboards import main_menu_keyboard, add_back_button
+
+
+logger = logging.getLogger("bot.partner")
 
 
 router = Router()
@@ -34,72 +38,16 @@ async def dashboard_button(message: Message) -> None:
 @router.message(F.text == "🔗 Реферальная ссылка")
 async def ref_link_button(message: Message) -> None:
     """Обработчик кнопки реферальной ссылки."""
-    tg_id = message.from_user.id
-    
-    async with SessionFactory() as session:
-        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
-        if not user:
-            await message.answer("Вы не зарегистрированы. Используйте /start для начала работы.")
-            return
-        
-        # Генерируем или получаем существующую реферальную ссылку
-        if not user.ref_code:
-            user.ref_code = generate_ref_code()
-            session.add(user)
-            await session.commit()
-        
-        bot_username = (await bot.get_me()).username
-        ref_link = f"https://t.me/{bot_username}?start={user.ref_code}"
-        
-        await message.answer(
-            f"🔗 Ваша реферальная ссылка:\n\n{ref_link}\n\n"
-            f"Поделитесь этой ссылкой с мастерами и клиентами, чтобы получать вознаграждение за каждый заказ."
-        )
+    # Делегируем существующей команде, чтобы избежать дублирования
+    logger.info("partner_button:link", extra={"user_id": message.from_user.id})
+    await cmd_partner_link(message)
 
 
 @router.message(F.text == "💳 Выплаты")
 async def payouts_button(message: Message) -> None:
     """Обработчик кнопки выплат."""
-    tg_id = message.from_user.id
-    
-    async with SessionFactory() as session:
-        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
-        if not user:
-            await message.answer("Вы не зарегистрированы. Используйте /start для начала работы.")
-            return
-        
-        # Получаем выплаты партнера
-        payouts = (await session.execute(
-            select(Payout).join(Order, Payout.order_id == Order.id)
-            .join(User, Order.client_id == User.id)
-            .where(User.referrer_id == user.id)
-            .order_by(Payout.created_at.desc())
-            .limit(10)
-        )).scalars().all()
-    
-    if not payouts:
-        await message.answer("У вас пока нет выплат. Приглашайте мастеров и клиентов по вашей реферальной ссылке.")
-        return
-    
-    # Показываем последние 5 выплат
-    total_amount = sum(payout.amount for payout in payouts)
-    
-    summary = f"💳 Ваши выплаты:\n\nВсего заработано: {total_amount} руб.\n\nПоследние выплаты:\n"
-    
-    for payout in payouts[:5]:
-        status_text = {
-            "pending": "🕐 Ожидает обработки",
-            "processed": "✅ Обработана",
-            "rejected": "❌ Отклонена"
-        }.get(payout.status, "🕐 Ожидает обработки")
-        
-        summary += f"- {payout.amount} руб. ({status_text}) - {payout.created_at.strftime('%d.%m.%Y')}\n"
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Запросить выплату", callback_data="request_payout")]
-    ])
-    
-    await message.answer(summary, reply_markup=keyboard)
+    logger.info("partner_button:payouts", extra={"user_id": message.from_user.id})
+    await cmd_partner_payouts(message)
 
 
 @router.message(F.text == "❓ Помощь")
@@ -226,6 +174,7 @@ async def cmd_help_partner(message: Message) -> None:
 async def cmd_partner_link(message: Message) -> None:
     """Generate and show partner referral link."""
     tg_id = message.from_user.id
+    logger.info("partner_cmd:link", extra={"user_id": tg_id})
     
     async with SessionFactory() as session:
         user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
@@ -244,19 +193,40 @@ async def cmd_partner_link(message: Message) -> None:
             session.add(partner)
             await session.commit()
             
-        referral_link = f"https://t.me/{message.bot.username}?start={partner.referral_code}"
+        # Fetch bot username reliably via get_me()
+        try:
+            me = await message.bot.get_me()
+            username = getattr(me, "username", None)
+        except Exception:
+            username = None
+
+        referral_link = None
+        if username:
+            referral_link = f"https://t.me/{username}?start={partner.referral_code}"
+        else:
+            logger.warning(
+                "partner_link:no_username",
+                extra={"user_id": tg_id}
+            )
         
-    await message.answer(
-        f"🔗 Ваша реферальная ссылка:\n{referral_link}\n\n"
-        f"Код: {partner.referral_code}\n\n"
-        f"Делитесь этой ссылкой и получайте 5% от заказов приведенных клиентов!"
-    )
+    if referral_link:
+        await message.answer(
+            f"🔗 Ваша реферальная ссылка:\n{referral_link}\n\n"
+            f"Код: {partner.referral_code}\n\n"
+            f"Делитесь этой ссылкой и получайте 5% от заказов приведенных клиентов!"
+        )
+    else:
+        await message.answer(
+            f"Код: {partner.referral_code}\n\n"
+            "Не удалось получить username бота для формирования ссылки. Откройте бота и введите код вручную."
+        )
 
 
 @router.message(Command("partner_stats"))
 async def cmd_partner_stats(message: Message) -> None:
     """Show partner statistics."""
     tg_id = message.from_user.id
+    logger.info("partner_cmd:stats", extra={"user_id": tg_id})
     
     async with SessionFactory() as session:
         user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
@@ -305,6 +275,7 @@ async def cmd_partner_stats(message: Message) -> None:
 async def cmd_partner_payouts(message: Message) -> None:
     """Show partner payout history."""
     tg_id = message.from_user.id
+    logger.info("partner_cmd:payouts", extra={"user_id": tg_id})
     
     async with SessionFactory() as session:
         user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
@@ -323,12 +294,18 @@ async def cmd_partner_payouts(message: Message) -> None:
     if not payouts:
         await message.answer("У вас еще нет выплат.")
         return
-        
+    
+    status_human = {
+        "pending": "🕐 Ожидает выплаты",
+        "paid": "✅ Выплачено",
+        "failed": "❌ Отклонена",
+    }
     payouts_text = "💳 История выплат:\n\n"
     for payout in payouts:
+        st = status_human.get(payout.status, payout.status)
         payouts_text += (
             f"Заказ #{payout.order_id}: {payout.amount_partner} KZT\n"
-            f"Статус: {payout.status}\n"
+            f"Статус: {st}\n"
             f"Дата: {payout.created_at.strftime('%d.%m.%Y')}\n\n"
         )
     
@@ -339,6 +316,7 @@ async def cmd_partner_payouts(message: Message) -> None:
 async def cmd_partner_dashboard(message: Message) -> None:
     """Show comprehensive partner dashboard."""
     tg_id = message.from_user.id
+    logger.info("partner_cmd:dashboard", extra={"user_id": tg_id})
     
     async with SessionFactory() as session:
         user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
@@ -388,7 +366,7 @@ async def get_partner_statistics(session, partner_user_id):
         select(func.count(Order.id))
         .join(User, Order.client_id == User.id)
         .where(User.referrer_id == partner_user_id)
-        .where(Order.status == "active")
+        .where(Order.status == "assigned")
     )).scalar()
     
     completed_orders = (await session.execute(

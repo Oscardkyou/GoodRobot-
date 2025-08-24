@@ -15,7 +15,8 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,  # Make env var names case-insensitive
-        env_prefix=""  # No prefix for env vars
+        env_prefix="",  # No prefix for env vars
+        extra="ignore",  # Ignore unknown env keys (e.g., ADMIN_PORT, LOG_LEVEL)
     )
 
     # Bot settings

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime, timedelta
 from typing import Optional, List
+import os
 
 from app.models.user import User
 from admin.app.database import get_db
@@ -59,8 +60,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
         expire = datetime.utcnow() + timedelta(minutes=30)  # Устанавливаем время жизни токена в 30 минут
     
     to_encode.update({"exp": expire})
-    # Используем временный секретный ключ и алгоритм для JWT
-    secret_key = "goodrobot_admin_secret_key_please_change_in_production"
+    # Используем секретный ключ из переменных окружения
+    secret_key = os.getenv("SECRET_KEY", "your-secret-key-for-jwt")
     algorithm = "HS256"
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=algorithm)
     
@@ -85,7 +86,7 @@ async def get_current_user(
     
     try:
         # Используем те же значения, что и при создании токена
-        secret_key = "goodrobot_admin_secret_key_please_change_in_production"
+        secret_key = os.getenv("SECRET_KEY", "your-secret-key-for-jwt")
         algorithm = "HS256"
         payload = jwt.decode(token, secret_key, algorithms=[algorithm])
         username: str = payload.get("sub")

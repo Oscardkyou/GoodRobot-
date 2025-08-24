@@ -33,27 +33,46 @@
         const loginForm = document.getElementById('login-form');
         const loginError = document.getElementById('login-error');
         
-        // Если мы уже на странице входа и авторизованы, перенаправляем на главную
-        if (sessionStorage.getItem('isLoggedIn') === 'true') {
+        // Если мы уже авторизованы (есть JWT), перенаправляем на главную
+        const existingToken = localStorage.getItem('token');
+        if (existingToken) {
             window.location.href = '/';
             return;
         }
         
         if (loginForm) {
-            loginForm.addEventListener('submit', function(e) {
+            loginForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
+                loginError.classList.add('d-none');
                 
-                const username = document.getElementById('username').value;
+                const username = document.getElementById('username').value.trim();
                 const password = document.getElementById('password').value;
                 
-                // Проверяем учетные данные
-                if (username === 'admin' && password === 'password123') {
-                    // Сохраняем информацию о входе
-                    sessionStorage.setItem('isLoggedIn', 'true');
-                    sessionStorage.setItem('username', username);
-                    // Перенаправляем на главную страницу
-                    window.location.href = '/';
-                } else {
+                try {
+                    const resp = await fetch('/token', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: new URLSearchParams({
+                            username: username,
+                            password: password,
+                            grant_type: 'password'
+                        })
+                    });
+                    
+                    if (!resp.ok) {
+                        loginError.classList.remove('d-none');
+                        return;
+                    }
+                    const data = await resp.json();
+                    if (data && data.access_token) {
+                        localStorage.setItem('token', data.access_token);
+                        window.location.href = '/';
+                    } else {
+                        loginError.classList.remove('d-none');
+                    }
+                } catch (err) {
                     loginError.classList.remove('d-none');
                 }
             });
