@@ -9,5 +9,35 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U masterbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build: .
+    command: sh -c "python scripts/wait_for_db.py && sh scripts/entrypoint_bot.sh"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+
+  admin:
+    build: .
+    command: sh -c "python scripts/wait_for_db.py && sh scripts/entrypoint_admin.sh"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+
 volumes:
   pgdata:

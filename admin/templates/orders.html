@@ -56,6 +56,7 @@
                 <th scope="col">Мастер</th>
                 <th scope="col">Цена</th>
                 <th scope="col">Адрес</th>
+                <th scope="col">Геолокация</th>
                 <th scope="col">Статус</th>
                 <th scope="col">Дата создания</th>
                 <th scope="col">Действия</th>
@@ -99,9 +100,34 @@
         </div>
     </div>
 </div>
+
+<!-- Модальное окно для просмотра геолокации -->
+<div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="locationModalLabel">Геолокация заказа</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="map" style="height: 400px;"></div>
+                <div class="mt-3">
+                    <p><strong>Координаты:</strong> <span id="coordinates"></span></p>
+                    <p><small>Для просмотра в Google Maps: <a href="#" id="google-maps-link" target="_blank">Открыть в Google Maps</a></small></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
+<!-- Подключаем Leaflet для отображения карты -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     let currentPage = 1;
     const pageSize = 10;
@@ -145,6 +171,15 @@
                         <td>${order.master_id || '-'}</td>
                         <td>${order.price} ₽</td>
                         <td>${order.address}</td>
+                        <td>
+                            ${order.latitude && order.longitude ? 
+                                `<button class="btn btn-sm btn-outline-info view-location" 
+                                    data-lat="${order.latitude}" data-lon="${order.longitude}">
+                                    <i class="bi bi-geo-alt"></i> Карта
+                                </button>` : 
+                                'Нет данных'
+                            }
+                        </td>
                         <td><span class="badge bg-${getStatusBadgeColor(order.status)}">${order.status}</span></td>
                         <td>${new Date(order.created_at).toLocaleDateString()}</td>
                         <td>
@@ -177,6 +212,13 @@
                 document.querySelectorAll('.cancel-order').forEach(button => {
                     button.addEventListener('click', function() {
                         showOrderActionModal('cancel', this.dataset.id);
+                    });
+                });
+                
+                // Добавляем обработчики для кнопок просмотра геолокации
+                document.querySelectorAll('.view-location').forEach(button => {
+                    button.addEventListener('click', function() {
+                        showLocationModal(this.dataset.lat, this.dataset.lon);
                     });
                 });
                 
@@ -347,6 +389,51 @@
         
         // Обработчик кнопки подтверждения действия
         document.getElementById('confirmOrderAction').addEventListener('click', performOrderAction);
+        
+        // Инициализация карты при открытии модального окна
+        document.getElementById('locationModal').addEventListener('shown.bs.modal', function () {
+            // Если карта уже инициализирована, обновляем её размер
+            if (window.map) {
+                window.map.invalidateSize();
+            }
+        });
     });
+    
+    // Функция для отображения модального окна с картой
+    function showLocationModal(lat, lon) {
+        const modal = new bootstrap.Modal(document.getElementById('locationModal'));
+        const coordinates = document.getElementById('coordinates');
+        const googleMapsLink = document.getElementById('google-maps-link');
+        
+        // Устанавливаем координаты
+        coordinates.textContent = `${lat}, ${lon}`;
+        
+        // Устанавливаем ссылку на Google Maps
+        googleMapsLink.href = `https://www.google.com/maps?q=${lat},${lon}`;
+        
+        // Показываем модальное окно
+        modal.show();
+        
+        // Инициализируем карту после того, как модальное окно будет показано
+        setTimeout(() => {
+            // Если карта уже инициализирована, удаляем её
+            if (window.map) {
+                window.map.remove();
+            }
+            
+            // Создаем новую карту
+            window.map = L.map('map').setView([lat, lon], 15);
+            
+            // Добавляем слой OpenStreetMap
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(window.map);
+            
+            // Добавляем маркер
+            L.marker([lat, lon]).addTo(window.map)
+                .bindPopup('Местоположение заказа')
+                .openPopup();
+        }, 300);
+    }
 </script>
 {% endblock %}

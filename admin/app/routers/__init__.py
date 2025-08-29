@@ -6,6 +6,7 @@ from .bids import router as bids_router
 from .payouts import router as payouts_router
 from .analytics import router as analytics_router
 from .masters import router as masters_router
+from .admins import router as admins_router
 
 # Создаем корневой роутер
 api_router = APIRouter()
@@ -17,3 +18,4 @@ api_router.include_router(bids_router, prefix="/bids", tags=["bids"])
 api_router.include_router(payouts_router, prefix="/payouts", tags=["payouts"])
 api_router.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(masters_router, prefix="/masters", tags=["masters"])
+api_router.include_router(admins_router, prefix="/admins", tags=["admins"])

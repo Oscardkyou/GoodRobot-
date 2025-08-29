@@ -17,8 +17,8 @@ depends_on = None
 
 
 def upgrade():
-    # Добавляем поле is_active для пользователей
-    op.add_column('users', sa.Column('is_active', sa.Boolean(), nullable=True, server_default='true'))
+    # Пустая миграция, так как колонка is_active уже добавляется в add_admin_fields.py
+    pass
 
 
 def downgrade():

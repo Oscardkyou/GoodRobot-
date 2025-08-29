@@ -61,16 +61,8 @@ async def get_masters(
         # Обеспечиваем строковый username (не None), чтобы пройти валидацию схемы
         if getattr(m, "username", None) is None:
             setattr(m, "username", "")
-        # Преобразуем зоны к списку int, игнорируя нечисловые значения из легаси-данных
-        raw_zones = getattr(m, "zones", None) or []
-        norm_zones = []
-        for z in raw_zones:
-            try:
-                norm_zones.append(int(z))
-            except Exception:
-                # пропускаем некорректные значения (например, "Медеуский")
-                continue
-        setattr(m, "zones", norm_zones)
+        # Районы удалены из модели
+        setattr(m, "zones", [])
     return masters
 
 @router.post("/api", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -115,7 +107,7 @@ async def create_master(
         name=user.full_name,
         phone=user.phone,
         tg_id=user.telegram_id,
-        zones=[str(z) for z in (user.zones or [])],
+        # Районы удалены из модели
         role="master",
         is_active=True
     )
@@ -199,3 +191,23 @@ async def delete_master(
     await db.commit()
     
     return {"message": "Мастер удален"}
+
+@router.get("/{master_id}", response_class=HTMLResponse)
+async def get_master_page(
+    request: Request, 
+    master_id: int, 
+    db: AsyncSession = Depends(get_db),
+    current_admin=Depends(get_current_admin)
+):
+    """Отображает страницу с детальной информацией о мастере"""
+    query = select(User).filter(User.id == master_id, User.role == "master")
+    result = await db.execute(query)
+    master = result.scalar_one_or_none()
+    
+    if not master:
+        raise HTTPException(status_code=404, detail="Мастер не найден")
+    
+    return templates.TemplateResponse(
+        "master_detail.html", 
+        {"request": request, "master": master, "current_user": current_admin}
+    )

@@ -1,17 +1,20 @@
-"""Handlers for мастер role: setup zones and create bids."""
+"""Handlers for мастер role: setup zones, create bids and track clients."""
 import logging
+import datetime
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup, Location
 
-from sqlalchemy import select
+from sqlalchemy import select, and_, or_
 
 from app.bot.keyboards import (
-    zones_keyboard_master_full,
     main_menu_keyboard,
     master_main_menu_keyboard,
     role_keyboard,
+    tracking_orders_keyboard,
+    tracking_actions_keyboard,
+    location_update_request_keyboard,
 )
 from app.bot.states import BidCreate, MasterSetup
 from app.models import Bid, User, Order
@@ -25,7 +28,7 @@ router = Router()
 @router.message(Command("help_master"))
 async def cmd_help_master(message: Message) -> None:
     await message.answer(
-        "Вы мастер. Используйте /start чтобы выбрать роль и настроить районы обслуживания."
+        "Вы мастер. Используйте /start чтобы выбрать роль."
     )
 
 
@@ -50,21 +53,36 @@ async def nearby_orders_button(message: Message, state: FSMContext) -> None:
     tg_id = message.from_user.id
 
     async with SessionFactory() as session:
-        # Получаем мастера и его зоны
+        # Получаем мастера
         user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
-        if not user or not user.zones:
-            await message.answer("Вы не настроили зоны обслуживания. Используйте /setup для настройки.")
+        if not user:
+            await message.answer("Пользователь не найден. Используйте /start для начала работы.")
             return
 
-        # Получаем заказы в зонах мастера со статусом "new"
-        from app.models import Order
-
-        orders = (await session.execute(
-            select(Order).where(
-                Order.zone.in_(user.zones),
-                Order.status == "new"
-            ).order_by(Order.created_at.desc())
+        # Получаем заказы со статусом "new" и "assigned"
+        # Получаем все заказы со статусом "new"
+        new_orders_query = select(Order).where(
+            Order.status == "new",
+            # Исключаем заказы самого мастера, если он вдруг создал заказ как клиент
+            Order.client_id != user.id
+        ).order_by(Order.created_at.desc())
+        
+        # Получаем заказы со статусом "assigned", назначенные этому мастеру
+        assigned_orders_query = select(Order).where(
+            Order.master_id == user.id,
+            Order.status == "assigned"
+        ).order_by(Order.created_at.desc())
+        
+        # Выполняем оба запроса
+        new_orders = (await session.execute(new_orders_query)).scalars().all()
+        assigned_orders = (await session.execute(assigned_orders_query)).scalars().all()
+        
+        # Получаем ставки мастера, чтобы отметить заказы, на которые он уже сделал ставку
+        bids = (await session.execute(
+            select(Bid.order_id).where(Bid.master_id == user.id)
         )).scalars().all()
+        
+        bid_order_ids = set(bids)
 
         # Structured debug logging
         logger.info(
@@ -72,30 +90,61 @@ async def nearby_orders_button(message: Message, state: FSMContext) -> None:
             extra={
                 "user_id": tg_id,
                 "chat_id": message.chat.id if message.chat else None,
-                "zones": ",".join(user.zones) if user.zones else "",
-                "found": len(orders),
+                "new_found": len(new_orders),
+                "assigned_found": len(assigned_orders),
+                "bids_made": len(bid_order_ids),
             },
         )
 
-    if not orders:
-        await message.answer("В ваших районах пока нет новых заказов.")
-        return
+    # Сначала показываем заказы, назначенные мастеру
+    if assigned_orders:
+        await message.answer("🟡 Заказы в работе:")
+        for order in assigned_orders[:5]:  # Ограничиваем до 5 заказов
+            order_text = (
+                f"📦 Заказ #{order.id} (В работе)\n"
+                f"Категория: {order.category}\n"
+                # Районы удалены из модели
+                f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            )
 
-    # Показываем последние 5 заказов
-    for order in orders[:10]:
-        order_text = (
-            f"📦 Заказ #{order.id}\n"
-            f"Категория: {order.category}\n"
-            f"Район: {order.zone}\n"
-            f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-        )
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="Подробнее", callback_data=f"view_order:{order.id}")],
+                [InlineKeyboardButton(text="Завершить", callback_data=f"complete_order:{order.id}")]
+            ])
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Подробнее", callback_data=f"view_order:{order.id}")],
-            [InlineKeyboardButton(text="Сделать ставку", callback_data=f"bid:{order.id}")]
-        ])
+            await message.answer(order_text, reply_markup=keyboard)
 
-        await message.answer(order_text, reply_markup=keyboard)
+    # Затем показываем новые заказы
+    if new_orders:
+        await message.answer("🔵 Новые заказы:")
+        for order in new_orders[:10]:  # Ограничиваем до 10 заказов
+            # Отмечаем, сделал ли мастер ставку на этот заказ
+            has_bid = order.id in bid_order_ids
+            bid_status = "✓ Ставка сделана" if has_bid else "Ставка не сделана"
+            
+            order_text = (
+                f"📦 Заказ #{order.id}\n"
+                f"Категория: {order.category}\n"
+                f"Статус ставки: {bid_status}\n"
+                f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            )
+
+            keyboard_buttons = [
+                [InlineKeyboardButton(text="Подробнее", callback_data=f"view_order:{order.id}")]
+            ]
+            
+            # Добавляем кнопку ставки только если мастер еще не делал ставку
+            if not has_bid:
+                keyboard_buttons.append([InlineKeyboardButton(text="Сделать ставку", callback_data=f"bid:{order.id}")])
+            else:
+                keyboard_buttons.append([InlineKeyboardButton(text="Изменить ставку", callback_data=f"edit_bid_order:{order.id}")])
+                
+            keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+            await message.answer(order_text, reply_markup=keyboard)
+    
+    # Если нет ни новых, ни назначенных заказов
+    if not new_orders and not assigned_orders:
+        await message.answer("Пока нет новых заказов, и у вас нет заказов в работе.")
 
 
 @router.callback_query(F.data.startswith("view_order:"))
@@ -119,7 +168,6 @@ async def view_order_details(callback: CallbackQuery, state: FSMContext) -> None
     text = (
         f"📦 Заказ #{order.id}\n"
         f"Категория: {order.category}\n"
-        f"Район: {order.zone}\n"
         f"Адрес: {order.address or '—'}\n"
         f"Описание: {order.description or '—'}\n"
         f"Статус: {order.status}\n"
@@ -186,7 +234,6 @@ async def my_bids_button(message: Message, state: FSMContext) -> None:
         bid_text = (
             f"💰 Ставка на заказ #{order.id}: {status_text}\n"
             f"Категория: {order.category}\n"
-            f"Район: {order.zone}\n"
             f"Цена: {bid.price} KZT\n"
             f"Дата ставки: {bid.created_at.strftime('%d.%m.%Y %H:%M')}\n"
         )
@@ -196,6 +243,65 @@ async def my_bids_button(message: Message, state: FSMContext) -> None:
         ])
 
         await message.answer(bid_text, reply_markup=keyboard)
+
+
+@router.message(F.text == "📝 Мои заказы")
+async def my_orders_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки просмотра заказов мастера."""
+    tg_id = message.from_user.id
+
+    async with SessionFactory() as session:
+        # Получаем мастера
+        master = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not master or master.role != "master":
+            await message.answer("Вы не зарегистрированы как мастер. Используйте /start для начала работы.")
+            return
+
+        # Получаем заказы мастера всех статусов
+        orders_query = select(Order).where(
+            Order.master_id == master.id
+        ).order_by(Order.created_at.desc())
+        
+        orders = (await session.execute(orders_query)).scalars().all()
+
+    if not orders:
+        await message.answer("У вас пока нет заказов. Найдите заказы в разделе 'Заказы поблизости'.")
+        return
+
+    await message.answer("📝 Ваши заказы:")
+    
+    # Группируем заказы по статусу
+    active_orders = [order for order in orders if order.status in ["assigned", "in_progress"]]
+    completed_orders = [order for order in orders if order.status == "done"]
+    
+    # Показываем активные заказы
+    if active_orders:
+        await message.answer("🔵 Активные заказы:")
+        for order in active_orders[:5]:  # Ограничиваем до 5 заказов
+            order_text = (
+                f"📦 Заказ #{order.id} (В работе)\n"
+                f"Категория: {order.category}\n"
+                f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            )
+
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔍 Отслеживать", callback_data=f"track_order:{order.id}")],
+                [InlineKeyboardButton(text="✅ Завершить", callback_data=f"complete_order:{order.id}")]
+            ])
+
+            await message.answer(order_text, reply_markup=keyboard)
+    
+    # Показываем завершенные заказы
+    if completed_orders:
+        await message.answer("✅ Завершенные заказы:")
+        for order in completed_orders[:3]:  # Показываем только 3 последних завершенных заказа
+            order_text = (
+                f"📦 Заказ #{order.id} (Завершен)\n"
+                f"Категория: {order.category}\n"
+                f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            )
+
+            await message.answer(order_text)
 
 
 @router.message(F.text == "⚙️ Настройки")
@@ -209,20 +315,101 @@ async def settings_button(message: Message) -> None:
             await message.answer("Вы не зарегистрированы. Используйте /start для начала работы.")
             return
 
-        zones_text = ", ".join(user.zones) if user.zones else "Не указаны"
-
         settings_text = (
             f"⚙️ Настройки профиля:\n\n"
             f"Имя: {user.name or 'Не указано'}\n"
-            f"Районы обслуживания: {zones_text}\n"
         )
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Изменить районы", callback_data="setup_zones")],
             [InlineKeyboardButton(text="Изменить роль", callback_data="change_role")]
         ])
 
         await message.answer(settings_text, reply_markup=keyboard)
+
+
+@router.message(F.text == "🔍 Отслеживание клиентов")
+async def tracking_clients_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки отслеживания клиентов."""
+    tg_id = message.from_user.id
+
+    async with SessionFactory() as session:
+        # Получаем мастера
+        master = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not master or master.role != "master":
+            await message.answer("Вы не зарегистрированы как мастер. Используйте /start для начала работы.")
+            return
+
+        # Получаем активные заказы мастера
+        orders_query = select(Order).where(
+            Order.master_id == master.id,
+            Order.status.in_(["assigned", "in_progress"])
+        ).order_by(Order.created_at.desc())
+        
+        orders = (await session.execute(orders_query)).scalars().all()
+
+    if not orders:
+        await message.answer(
+            "У вас нет активных заказов для отслеживания. \n"
+            "Вы можете отслеживать только заказы, которые находятся в работе."
+        )
+        return
+
+    await message.answer(
+        "Выберите заказ для отслеживания:",
+        reply_markup=tracking_orders_keyboard(orders)
+    )
+
+
+@router.message(F.text == "📊 Активные заказы")
+async def active_orders_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки просмотра активных заказов."""
+    tg_id = message.from_user.id
+
+    async with SessionFactory() as session:
+        # Получаем мастера
+        master = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not master or master.role != "master":
+            await message.answer("Вы не зарегистрированы как мастер. Используйте /start для начала работы.")
+            return
+
+        # Получаем активные заказы мастера
+        orders_query = select(Order).where(
+            Order.master_id == master.id,
+            Order.status.in_(["assigned", "in_progress"])
+        ).order_by(Order.created_at.desc())
+        
+        orders = (await session.execute(orders_query)).scalars().all()
+
+    if not orders:
+        await message.answer("У вас нет активных заказов в работе.")
+        return
+
+    await message.answer("📊 Ваши активные заказы:")
+    
+    for order in orders:
+        # Проверяем наличие информации о последнем обновлении геолокации
+        location_info = ""
+        if order.location_updated_at:
+            time_diff = datetime.datetime.now() - order.location_updated_at
+            if time_diff.total_seconds() < 3600:  # Меньше часа
+                location_info = f"\n📍 Геолокация обновлена {int(time_diff.total_seconds() // 60)} мин. назад"
+            else:
+                location_info = f"\n📍 Геолокация обновлена {order.location_updated_at.strftime('%d.%m.%Y %H:%M')}"
+        
+        order_text = (
+            f"📦 Заказ #{order.id}\n"
+            f"Категория: {order.category}\n"
+            f"Адрес: {order.address or '—'}\n"
+            f"Статус: {order.status}\n"
+            f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}{location_info}"
+        )
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔍 Отслеживать", callback_data=f"track_order:{order.id}")],
+            [InlineKeyboardButton(text="✅ Завершить", callback_data=f"complete_order:{order.id}")]
+        ])
+
+        await message.answer(order_text, reply_markup=keyboard)
 
 
 @router.message(F.text == "❓ Помощь")
@@ -232,18 +419,89 @@ async def help_button(message: Message) -> None:
         "📖 Помощь по использованию бота (режим мастера):\n\n"
         "Команды:\n"
         "/start - Начать работу с ботом\n"
-        "/menu - Открыть главное меню\n"
-        "/setup - Настроить районы обслуживания\n\n"
+        "/menu - Открыть главное меню\n\n"
         "Как работать с заказами:\n"
-        "1. Нажмите 'Заказы поблизости' для поиска заказов в ваших районах\n"
+        "1. Нажмите 'Заказы поблизости' для поиска доступных заказов\n"
         "2. Нажмите 'Сделать ставку' и укажите вашу цену\n"
         "3. Отслеживайте статус ваших ставок в разделе 'Мои ставки'\n\n"
+        "Отслеживание клиентов:\n"
+        "1. Нажмите 'Отслеживание клиентов' для просмотра активных заказов\n"
+        "2. Выберите заказ для отслеживания\n"
+        "3. Вы можете запросить обновление геолокации или посмотреть последнюю известную локацию\n\n"
         "Настройки профиля:\n"
-        "- Используйте раздел 'Настройки' для изменения районов обслуживания\n"
         "- Вы можете изменить роль в любой момент\n"
     )
 
     await message.answer(help_text)
+
+
+@router.callback_query(F.data.startswith("track_order:"))
+async def track_order_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    """Обработчик выбора заказа для отслеживания."""
+    try:
+        order_id = int(callback.data.split(":", 1)[1])
+    except Exception:
+        await callback.answer("Некорректный идентификатор заказа", show_alert=True)
+        return
+
+    tg_id = callback.from_user.id
+    async with SessionFactory() as session:
+        # Получаем мастера
+        master = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not master or master.role != "master":
+            await callback.answer("Вы не зарегистрированы как мастер", show_alert=True)
+            return
+
+        # Получаем заказ
+        order = (await session.execute(select(Order).where(Order.id == order_id))).scalars().first()
+        if not order:
+            await callback.answer("Заказ не найден", show_alert=True)
+            return
+
+        # Проверяем, что заказ назначен этому мастеру
+        if order.master_id != master.id:
+            await callback.answer("Этот заказ не назначен вам", show_alert=True)
+            return
+
+        # Получаем клиента
+        client = (await session.execute(select(User).where(User.id == order.client_id))).scalars().first()
+        if not client:
+            await callback.answer("Клиент не найден", show_alert=True)
+            return
+
+    # Формируем текст с информацией о заказе и клиенте
+    location_info = ""
+    if order.location_updated_at:
+        time_diff = datetime.datetime.now() - order.location_updated_at
+        if time_diff.total_seconds() < 3600:  # Меньше часа
+            location_info = f"\n📍 Геолокация обновлена {int(time_diff.total_seconds() // 60)} мин. назад"
+        else:
+            location_info = f"\n📍 Геолокация обновлена {order.location_updated_at.strftime('%d.%m.%Y %H:%M')}"
+    else:
+        location_info = "\n📍 Геолокация не обновлялась"
+
+    order_text = (
+        f"🔍 Отслеживание заказа #{order.id}\n\n"
+        f"Категория: {order.category}\n"
+        f"Адрес: {order.address or '—'}\n"
+        f"Клиент: {client.name or 'Не указано'}\n"
+        f"Статус: {order.status}\n"
+        f"Дата создания: {order.created_at.strftime('%d.%m.%Y %H:%M')}{location_info}"
+    )
+
+    # Отправляем информацию и клавиатуру действий
+    try:
+        await callback.message.edit_text(
+            order_text,
+            reply_markup=tracking_actions_keyboard(order.id)
+        )
+    except Exception:
+        await callback.message.answer(
+            order_text,
+            reply_markup=tracking_actions_keyboard(order.id)
+        )
+    
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("back:"))
@@ -277,32 +535,13 @@ async def handle_back_button(callback: CallbackQuery, state: FSMContext) -> None
         except Exception:
             await callback.message.answer("Создание ставки отменено.")
         await callback.answer("Ставка отменена")
-    elif back_to == "master_setup" and current_state == MasterSetup.zones:
-        # Возврат к выбору роли
-        await state.clear()
-        await callback.message.answer(
-            "Выберите вашу роль:",
-            reply_markup=role_keyboard()
-        )
-        await callback.answer("Возврат к выбору роли")
+    # Удалено условие для MasterSetup.zones, так как больше не используется
     else:
         # Если не определено конкретное действие для текущего состояния
         await callback.answer("Действие недоступно в текущем состоянии")
 
 
-@router.callback_query(F.data == "setup_zones")
-async def setup_zones_callback(callback: CallbackQuery, state: FSMContext) -> None:
-    """Войти в режим настройки зон мастера."""
-    tg_id = callback.from_user.id
-    async with SessionFactory() as session:
-        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
-    selected = user.zones if user and user.zones else []
-    await state.set_state(MasterSetup.zones)
-    await callback.message.edit_text(
-        "Выберите районы обслуживания:",
-        reply_markup=zones_keyboard_master_full(selected=selected, with_back=True)
-    )
-    await callback.answer()
+# Обработчик setup_zones удален, так как районы больше не используются
 
 
 @router.callback_query(F.data == "change_role")
@@ -349,7 +588,6 @@ async def view_bid_details(callback: CallbackQuery, state: FSMContext) -> None:
         f"Комментарий: {bid.note or '—'}\n\n"
         f"📦 Заказ:\n"
         f"Категория: {order.category}\n"
-        f"Район: {order.zone}\n"
         f"Адрес: {order.address or '—'}\n"
         f"Описание: {order.description or '—'}\n"
         f"Создан: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
@@ -370,14 +608,113 @@ async def view_bid_details(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("edit_bid:"))
-async def edit_bid_price(callback: CallbackQuery, state: FSMContext) -> None:
-    """Инициировать изменение цены для своей активной ставки."""
+@router.callback_query(F.data.startswith("complete_order:"))
+async def complete_order(callback: CallbackQuery, state: FSMContext) -> None:
+    """Завершить заказ мастером."""
     try:
-        bid_id = int(callback.data.split(":", 1)[1])
+        order_id = int(callback.data.split(":", 1)[1])
     except Exception:
-        await callback.answer("Некорректный идентификатор ставки", show_alert=True)
+        await callback.answer("Некорректный идентификатор заказа", show_alert=True)
         return
+        
+    tg_id = callback.from_user.id
+    logger.info("master_cb:complete_order", extra={"user_id": tg_id, "order_id": order_id})
+    
+    async with SessionFactory() as session:
+        # Получаем мастера
+        master = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not master:
+            await callback.answer("Пользователь не найден", show_alert=True)
+            return
+            
+        # Получаем заказ
+        order = (await session.execute(select(Order).where(Order.id == order_id))).scalars().first()
+        if not order:
+            await callback.answer("Заказ не найден", show_alert=True)
+            return
+            
+        # Проверяем, что заказ назначен этому мастеру
+        if order.master_id != master.id:
+            await callback.answer("Этот заказ не назначен вам", show_alert=True)
+            return
+            
+        # Проверяем, что заказ в статусе "assigned"
+        if order.status != "assigned":
+            await callback.answer("Заказ не находится в работе", show_alert=True)
+            return
+            
+        # Получаем клиента
+        client = (await session.execute(select(User).where(User.id == order.client_id))).scalars().first()
+        
+        # Обновляем статус заказа
+        order.status = "done"
+        await session.commit()
+    
+    # Отправляем сообщение мастеру
+    await callback.message.edit_text(
+        f"Заказ #{order_id} отмечен как выполненный.\n"
+        f"Клиент будет уведомлен о завершении заказа."
+    )
+    
+    # Отправляем уведомление клиенту
+    if client and client.tg_id:
+        try:
+            await callback.bot.send_message(
+                chat_id=client.tg_id,
+                text=(
+                    f"✅ Ваш заказ #{order_id} выполнен!\n\n"
+                    f"Мастер {master.name} отметил заказ как выполненный.\n"
+                    f"Спасибо за использование нашего сервиса!"
+                ),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="Оценить работу", callback_data=f"rate_order:{order_id}")]
+                ])
+            )
+        except Exception:
+            logger.error("Failed to notify client", extra={"client_id": client.id, "order_id": order_id})
+    
+    await callback.answer("Заказ успешно завершен!", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("edit_bid_order:"))
+async def edit_bid_by_order(callback: CallbackQuery, state: FSMContext) -> None:
+    """Изменить ставку по ID заказа."""
+    try:
+        order_id = int(callback.data.split(":", 1)[1])
+    except Exception:
+        await callback.answer("Некорректный идентификатор заказа", show_alert=True)
+        return
+        
+    tg_id = callback.from_user.id
+    async with SessionFactory() as session:
+        # Получаем мастера
+        master = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not master:
+            await callback.answer("Пользователь не найден", show_alert=True)
+            return
+            
+        # Получаем ставку мастера на этот заказ
+        bid = (await session.execute(
+            select(Bid).where(Bid.order_id == order_id, Bid.master_id == master.id)
+        )).scalars().first()
+        
+        if not bid:
+            await callback.answer("Ставка не найдена", show_alert=True)
+            return
+    
+    # Перенаправляем на обработчик изменения ставки
+    await edit_bid_price(callback, state, bid_id=bid.id)
+
+
+@router.callback_query(F.data.startswith("edit_bid:"))
+async def edit_bid_price(callback: CallbackQuery, state: FSMContext, bid_id=None) -> None:
+    """Инициировать изменение цены для своей активной ставки."""
+    if bid_id is None:
+        try:
+            bid_id = int(callback.data.split(":", 1)[1])
+        except Exception:
+            await callback.answer("Некорректный идентификатор ставки", show_alert=True)
+            return
 
     tg_id = callback.from_user.id
     async with SessionFactory() as session:
@@ -441,41 +778,7 @@ async def cancel_bid(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 
-@router.callback_query(MasterSetup.zones, F.data.startswith("mzone:"))
-async def master_pick_zones(callback: CallbackQuery, state: FSMContext) -> None:
-    data = callback.data.split(":", 1)[1]
-    selected = (await state.get_data()).get("mzones", [])
-
-    if data == "done":
-        tg_id = callback.from_user.id
-        async with SessionFactory() as session:
-            user = (
-                await session.execute(select(User).where(User.tg_id == tg_id))
-            ).scalars().first()
-            if user:
-                user.zones = selected
-                await session.commit()
-        await state.clear()
-        await callback.message.edit_text(
-            f"Готово! Вы выбрали районы: {', '.join(selected) if selected else 'не выбраны'}"
-        )
-        await callback.answer()
-        return
-
-    if data == "clear":
-        selected = []
-    else:
-        if data in selected:
-            selected = [z for z in selected if z != data]
-        else:
-            selected = selected + [data]
-
-    await state.update_data(mzones=selected)
-    await callback.message.edit_text(
-        "Выберите районы обслуживания:",
-        reply_markup=zones_keyboard_master_full(selected, with_back=True),
-    )
-    await callback.answer()
+# Обработчик master_pick_zones удален, так как районы больше не используются
 
 
 @router.callback_query(F.data.startswith("bid:"))
@@ -565,11 +868,7 @@ async def submit_bid_price(message: Message, state: FSMContext) -> None:
                 await message.answer("Вы не можете делать ставку на собственный заказ.")
                 await state.clear()
                 return
-            # Проверка зоны
-            if master.zones and order.zone and order.zone not in master.zones:
-                await message.answer("Этот заказ вне ваших зон обслуживания.")
-                await state.clear()
-                return
+            # Проверка зоны удалена, так как районы больше не используются
 
             # Проверяем, есть ли уже ставка мастера на этот заказ
             existing = (

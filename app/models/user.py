@@ -13,7 +13,7 @@ class User(Base):
     role = Column(Enum('client', 'master', 'partner', 'admin', name='user_role_enum'), default='client', nullable=False)
     name = Column(String)
     phone = Column(String, unique=True)
-    zones = Column(ARRAY(String))
+    # zones поле удалено
     rating_avg = Column(Float, default=0.0)
     referrer_id = Column(BigInteger, ForeignKey('users.id'))
     created_at = Column(DateTime, server_default=func.now())
@@ -25,7 +25,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
 
     # Relationships
-    orders = relationship("Order", back_populates="client")
+    orders = relationship("Order", foreign_keys="[Order.client_id]", back_populates="client")
+    master_orders = relationship("Order", foreign_keys="[Order.master_id]", back_populates="master")
     bids = relationship("Bid", back_populates="master")
     ratings_given = relationship("Rating", foreign_keys="[Rating.rater_id]", back_populates="rater")
     ratings_received = relationship("Rating", foreign_keys="[Rating.ratee_id]", back_populates="ratee")

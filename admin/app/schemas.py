@@ -62,6 +62,9 @@ class OrderBase(BaseModel):
     price: float
     client_id: int
     status: OrderStatus = OrderStatus.NEW
+    address: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
 
 class OrderCreate(OrderBase):
     pass
@@ -71,6 +74,9 @@ class OrderUpdate(BaseModel):
     description: Optional[str] = None
     price: Optional[float] = None
     status: Optional[OrderStatus] = None
+    address: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
 
 class OrderResponse(OrderBase):
     id: int

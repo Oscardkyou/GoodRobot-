@@ -33,7 +33,7 @@ def categories_keyboard(with_back: bool = True) -> InlineKeyboardMarkup:
     rows = []
     row = []
     for i, name in enumerate(CATEGORIES, start=1):
-        row.append(InlineKeyboardButton(text=name, callback_data=f"cat:{name}"))
+        row.append(InlineKeyboardButton(text=name, callback_data=f"category:{name}"))
         if i % 2 == 0:
             rows.append(row)
             row = []
@@ -46,75 +46,16 @@ def categories_keyboard(with_back: bool = True) -> InlineKeyboardMarkup:
     return keyboard
 
 
-def zones_keyboard_master_full(selected: list[str] | None = None, with_back: bool = True) -> InlineKeyboardMarkup:
-    selected = selected or []
-    sel = set(selected)
-    rows = []
-    row = []
-    for i, name in enumerate(ZONES, start=1):
-        label = f"✓ {name}" if name in sel else name
-        row.append(InlineKeyboardButton(text=label, callback_data=f"mzone:{name}"))
-        if i % 2 == 0:
-            rows.append(row)
-            row = []
-    if row:
-        rows.append(row)
-    rows.append(
-        [
-            InlineKeyboardButton(text=f"Готово ({len(sel)})", callback_data="mzone:done"),
-            InlineKeyboardButton(text="Сброс", callback_data="mzone:clear"),
-        ]
-    )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
-    
-    if with_back:
-        return add_back_button(keyboard, "back:master_setup")
-    return keyboard
+# Районы были удалены из системы
 
 
-def zones_keyboard_master(with_back: bool = True) -> InlineKeyboardMarkup:
-    rows = []
-    row = []
-    for i, name in enumerate(ZONES, start=1):
-        row.append(InlineKeyboardButton(text=name, callback_data=f"mzone:{name}"))
-        if i % 2 == 0:
-            rows.append(row)
-            row = []
-    if row:
-        rows.append(row)
-    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
-    
-    if with_back:
-        return add_back_button(keyboard, "back:master_setup")
-    return keyboard
+# Районы были удалены из системы
 
 
-ZONES = [
-    "Алмалинский",
-    "Ауэзовский",
-    "Бостандыкский",
-    "Жетысуский",
-    "Медеуский",
-    "Наурызбай",
-    "Турксибский",
-]
+# Районы были удалены из системы
 
 
-def zones_keyboard(with_back: bool = True) -> InlineKeyboardMarkup:
-    rows = []
-    row = []
-    for i, name in enumerate(ZONES, start=1):
-        row.append(InlineKeyboardButton(text=name, callback_data=f"zone:{name}"))
-        if i % 2 == 0:
-            rows.append(row)
-            row = []
-    if row:
-        rows.append(row)
-    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
-    
-    if with_back:
-        return add_back_button(keyboard, "back:order_create")
-    return keyboard
+# Районы были удалены из системы
 
 
 def confirm_keyboard(with_back: bool = False) -> InlineKeyboardMarkup:
@@ -164,6 +105,7 @@ def master_main_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="📍 Заказы поблизости"), KeyboardButton(text="💰 Мои ставки")],
+            [KeyboardButton(text="🔍 Отслеживание клиентов"), KeyboardButton(text="📝 Мои заказы")],
             [KeyboardButton(text="⚙️ Настройки"), KeyboardButton(text="❓ Помощь")],
         ],
         resize_keyboard=True
@@ -185,3 +127,35 @@ def partner_dashboard_keyboard() -> InlineKeyboardMarkup:
         ]
     )
     return keyboard
+
+
+def tracking_orders_keyboard(orders) -> InlineKeyboardMarkup:
+    """Клавиатура для выбора заказа для отслеживания."""
+    buttons = []
+    for order in orders:
+        buttons.append([InlineKeyboardButton(
+            text=f"Заказ #{order.id}: {order.category}", 
+            callback_data=f"track_order:{order.id}"
+        )])
+    
+    # Добавляем кнопку возврата в меню
+    buttons.append([InlineKeyboardButton(text="« Назад", callback_data="back:main")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def tracking_actions_keyboard(order_id) -> InlineKeyboardMarkup:
+    """Клавиатура действий для отслеживания заказа."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Запросить обновление геолокации", callback_data=f"request_location:{order_id}")],
+        [InlineKeyboardButton(text="🗺️ Показать на карте", callback_data=f"show_map:{order_id}")],
+        [InlineKeyboardButton(text="📱 Связаться с клиентом", callback_data=f"contact_client:{order_id}")],
+        [InlineKeyboardButton(text="« Назад к заказам", callback_data="tracking:list")]
+    ])
+
+
+def location_update_request_keyboard(master_id) -> InlineKeyboardMarkup:
+    """Клавиатура для клиента с запросом обновления геолокации."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📍 Обновить геолокацию", callback_data=f"update_location:{master_id}")],
+        [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"decline_location:{master_id}")]
+    ])

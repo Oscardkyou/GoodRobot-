@@ -1,7 +1,7 @@
 """Aggregate routers from individual handler modules."""
 from aiogram import Router
 
-from . import client, master, partner
+from . import client, master, partner, tracking
 
 # The individual handler modules (`client`, `master`, `partner`) each define
 # their own `router` instance. They will be attached to the Dispatcher in
@@ -13,4 +13,5 @@ routers = (
     client.router,
     master.router,
     partner.router,
+    tracking.router,
 )

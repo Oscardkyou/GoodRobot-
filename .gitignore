@@ -21,26 +21,64 @@ wheels/
 *.egg
 
 # Virtual Environment
-.venv
 venv/
+env/
 ENV/
-
-# Environment variables
 .env
+.venv
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
+.DS_Store
 
 # Database
 *.sqlite3
 *.db
+*.sql
 
 # Logs
 *.log
+logs/
 
-# OS
-.DS_Store
-Thumbs.db
+# Local development
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose.override.yml
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Local development
+local_settings.py
+db.sqlite3
+
+# Project specific
+media/
+staticfiles/
+
+# Environment variables
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python bytecode
+*.pyc
+
+# Distribution / packaging
+.Python
+env/
+build/
