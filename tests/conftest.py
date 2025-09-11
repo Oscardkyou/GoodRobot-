@@ -1,13 +1,12 @@
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.models.base import Base
-from core.db import get_session
-
 
 # Создаем тестовую in-memory SQLite базу данных
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -25,17 +24,17 @@ def event_loop():
 async def test_engine():
     """Создает тестовый движок базы данных"""
     engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
-    
+
     # Создаем все таблицы
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield engine
-    
+
     # Удаляем все таблицы после тестов
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    
+
     await engine.dispose()
 
 
@@ -45,7 +44,7 @@ async def test_session(test_engine):
     async_session = sessionmaker(
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
-    
+
     async with async_session() as session:
         yield session
 
@@ -56,7 +55,7 @@ async def mock_db_session():
     async def _get_test_session():
         mock_session = AsyncMock(spec=AsyncSession)
         yield mock_session
-    
+
     with patch("core.db.get_session", _get_test_session):
         yield
 

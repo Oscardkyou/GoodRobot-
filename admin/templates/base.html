@@ -156,6 +156,12 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link {% if '/specialists' in request.path %}active{% endif %}" href="/specialists">
+                                <i class="bi bi-person-badge"></i>
+                                Специалисты
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link {% if '/orders' in request.path %}active{% endif %}" href="/orders">
                                 <i class="bi bi-cart"></i>
                                 Заказы
@@ -174,9 +180,21 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link {% if '/management' in request.path %}active{% endif %}" href="/management">
+                                <i class="bi bi-sliders"></i>
+                                Система управления
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link {% if '/analytics' in request.path %}active{% endif %}" href="/analytics">
                                 <i class="bi bi-graph-up"></i>
                                 Аналитика
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/client-actions' in request.path %}active{% endif %}" href="/client-actions">
+                                <i class="bi bi-activity"></i>
+                                Действия клиентов
                             </a>
                         </li>
                     </ul>

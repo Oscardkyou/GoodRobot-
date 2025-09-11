@@ -1,9 +1,8 @@
 from functools import lru_cache
-from pathlib import Path
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, PostgresDsn, model_validator
 from dotenv import load_dotenv
+from pydantic import Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load variables from .env if present
 load_dotenv()
@@ -30,6 +29,7 @@ class Settings(BaseSettings):
     postgres_user: str = Field("masterbot", alias="POSTGRES_USER")
     postgres_password: str = Field("masterbot", alias="POSTGRES_PASSWORD")
 
+    # Admin settings
     @property
     def database_url(self) -> str:
         """Construct database URL from components or use DSN if provided."""

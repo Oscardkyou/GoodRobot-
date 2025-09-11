@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+
+{% block title %}Специальность {{ specialty.name }}{% endblock %}
+
+{% block content %}
+<div id="specialty-container" class="container mt-4" data-specialty-id="{{ specialty.id }}">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Специальность: {{ specialty.name }}</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <a href="/specialties" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Назад к списку
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="edit-specialty-btn" data-bs-toggle="modal" data-bs-target="#editSpecialtyModal">
+                    <i class="bi bi-pencil"></i> Редактировать
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="delete-specialty-btn" data-bs-toggle="modal" data-bs-target="#deleteSpecialtyModal">
+                    <i class="bi bi-trash"></i> Удалить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Информация о специальности</h5>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <tbody>
+                        <tr>
+                            <th scope="row">ID</th>
+                            <td>{{ specialty.id }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Название</th>
+                            <td>{{ specialty.name }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Статус</th>
+                            <td>
+                                {% if specialty.is_active %}
+                                <span class="badge bg-success">Активна</span>
+                                {% else %}
+                                <span class="badge bg-danger">Неактивна</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Мастера с этой специальностью</h5>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="add-masters-btn">
+                    <i class="bi bi-plus"></i> Добавить мастеров
+                </button>
+            </div>
+            <div class="card-body">
+                {% if masters %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-sm">
+                        <thead>
+                            <tr>
+                                <th scope="col">ID</th>
+                                <th scope="col">Имя пользователя</th>
+                                <th scope="col">Полное имя</th>
+                                <th scope="col">Телефон</th>
+                                <th scope="col">Статус</th>
+                                <th scope="col">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for master in masters %}
+                            <tr class="master-row" data-master-id="{{ master.id }}">
+                                <td>{{ master.id }}</td>
+                                <td>{{ master.username }}</td>
+                                <td>{{ master.full_name or '-' }}</td>
+                                <td>{{ master.phone or '-' }}</td>
+                                <td>
+                                    {% if master.is_active %}
+                                    <span class="badge bg-success">Активен</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Заблокирован</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="/masters/{{ master.id }}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-master" data-id="{{ master.id }}">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    Нет мастеров с этой специальностью
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для редактирования специальности -->
+<div class="modal fade" id="editSpecialtyModal" tabindex="-1" aria-labelledby="editSpecialtyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="specialtyModalLabel">Редактировать специальность</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="specialty-form">
+                    <div class="mb-3">
+                        <label for="specialty-name" class="form-label">Название</label>
+                        <input type="text" class="form-control" id="specialty-name" value="{{ specialty.name }}" required>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="specialty-active" {% if specialty.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="specialty-active">Активна</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="save-specialty">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для подтверждения удаления -->
+<div class="modal fade" id="deleteSpecialtyModal" tabindex="-1" aria-labelledby="deleteSpecialtyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteSpecialtyModalLabel">Подтверждение удаления</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите удалить специальность "{{ specialty.name }}"?</p>
+                <p>Это действие нельзя отменить.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-specialty">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для добавления мастеров -->
+<div class="modal fade" id="addMastersModal" tabindex="-1" aria-labelledby="addMastersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addMastersModalLabel">Добавить мастеров к специальности</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="search-masters" placeholder="Поиск мастеров...">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped table-sm">
+                        <thead>
+                            <tr>
+                                <th scope="col">Выбрать</th>
+                                <th scope="col">ID</th>
+                                <th scope="col">Имя пользователя</th>
+                                <th scope="col">Полное имя</th>
+                                <th scope="col">Телефон</th>
+                            </tr>
+                        </thead>
+                        <tbody id="available-masters">
+                            <!-- Здесь будут доступные мастера -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="save-masters">Добавить выбранных</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для подтверждения удаления мастера из специальности -->
+<div class="modal fade" id="removeMasterModal" tabindex="-1" aria-labelledby="removeMasterModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="removeMasterModalLabel">Подтверждение</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите удалить этого мастера из специальности?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirm-remove-master">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+    // Получаем данные из data-атрибутов
+    const specialtyId = document.getElementById('specialty-container').dataset.specialtyId;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Инициализация данных специальности
+        const specialtyName = "{{ specialty.name }}";
+        const specialtyIsActive = "{{ specialty.is_active }}" === "True";
+        
+        // Редактирование специальности
+        document.getElementById('edit-specialty-btn').addEventListener('click', function() {
+            document.getElementById('specialty-name').value = specialtyName;
+            document.getElementById('specialty-active').checked = specialtyIsActive;
+        });
+
+        // Сохранение изменений специальности
+        document.getElementById('save-specialty').addEventListener('click', async function() {
+            const name = document.getElementById('specialty-name').value;
+            const isActive = document.getElementById('specialty-active').checked;
+            
+            if (!name) {
+                alert('Название специальности не может быть пустым');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/specialties/${specialtyId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        is_active: isActive
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Ошибка при обновлении специальности');
+                }
+                
+                // Закрываем модальное окно и обновляем страницу
+                bootstrap.Modal.getInstance(document.getElementById('editSpecialtyModal')).hide();
+                window.location.reload();
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert('Произошла ошибка при обновлении специальности');
+            }
+        });
+
+        // Подтверждение удаления специальности
+        document.getElementById('confirm-delete-specialty').addEventListener('click', async function() {
+            try {
+                const response = await fetch(`/api/specialties/${specialtyId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Ошибка при удалении специальности');
+                }
+                
+                // Перенаправляем на страницу со списком специальностей
+                window.location.href = '/specialties';
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert('Произошла ошибка при удалении специальности');
+            }
+        });
+
+        // Удаление мастера из специальности
+        document.querySelectorAll('.remove-master').forEach(button => {
+            button.addEventListener('click', function() {
+                const masterId = this.getAttribute('data-id');
+                const masterName = this.getAttribute('data-name');
+                
+                document.getElementById('master-to-remove-name').textContent = masterName;
+                document.getElementById('confirm-remove-master').setAttribute('data-id', masterId);
+                
+                // Открываем модальное окно подтверждения
+                new bootstrap.Modal(document.getElementById('removeMasterModal')).show();
+            });
+        });
+
+        // Добавление мастеров к специальности
+        document.getElementById('add-masters-btn').addEventListener('click', async function() {
+            try {
+                const response = await fetch('/api/masters?role=master');
+                if (!response.ok) {
+                    throw new Error('Ошибка при получении списка мастеров');
+                }
+                
+                const masters = await response.json();
+                // Получаем текущие ID мастеров из DOM
+                const currentMasterIds = [];
+                document.querySelectorAll('.master-row').forEach(row => {
+                    currentMasterIds.push(parseInt(row.dataset.masterId));
+                });
+                
+                const availableMasters = masters.filter(master => !currentMasterIds.includes(master.id));
+                
+                const mastersTable = document.getElementById('available-masters');
+                mastersTable.innerHTML = '';
+                
+                if (availableMasters.length === 0) {
+                    mastersTable.innerHTML = '<tr><td colspan="5" class="text-center">Нет доступных мастеров</td></tr>';
+                } else {
+                    availableMasters.forEach(master => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${master.id}</td>
+                            <td>${master.username || '-'}</td>
+                            <td>${master.full_name || '-'}</td>
+                            <td>${master.phone || '-'}</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary add-master-btn" data-id="${master.id}">
+                                    Добавить
+                                </button>
+                            </td>
+                        `;
+                        mastersTable.appendChild(row);
+                    });
+                    
+                    // Добавляем обработчики для кнопок добавления мастера
+                    document.querySelectorAll('.add-master-btn').forEach(button => {
+                        button.addEventListener('click', async function() {
+                            const masterId = this.getAttribute('data-id');
+                            await addMasterToSpecialty(masterId);
+                        });
+                    });
+                }
+                
+                // Открываем модальное окно
+                new bootstrap.Modal(document.getElementById('addMastersModal')).show();
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert('Произошла ошибка при получении списка мастеров');
+            }
+        });
+
+        // Функция добавления мастера к специальности
+        async function addMasterToSpecialty(masterId) {
+            try {
+                // Получаем текущие специальности мастера
+                const specialtiesResponse = await fetch(`/api/masters/${masterId}/specialties`);
+                if (!specialtiesResponse.ok) {
+                    throw new Error(`Ошибка при получении специальностей мастера ${masterId}`);
+                }
+                
+                const specialties = await specialtiesResponse.json();
+                const specialtyIds = specialties.map(s => s.id);
+                
+                // Добавляем текущую специальность, если её ещё нет
+                if (!specialtyIds.includes(parseInt(specialtyId))) {
+                    specialtyIds.push(parseInt(specialtyId));
+                }
+                
+                // Обновляем специальности мастера
+                const updateResponse = await fetch(`/api/masters/${masterId}/specialties`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ specialty_ids: specialtyIds })
+                });
+                
+                if (!updateResponse.ok) {
+                    throw new Error('Ошибка при обновлении специальностей мастера');
+                }
+                
+                // Закрываем модальное окно и обновляем страницу
+                bootstrap.Modal.getInstance(document.getElementById('addMastersModal')).hide();
+                window.location.reload();
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert('Произошла ошибка при добавлении мастера к специальности');
+            }
+        }
+
+        // Подтверждение удаления мастера из специальности
+        document.getElementById('confirm-remove-master').addEventListener('click', async function() {
+            const masterId = this.getAttribute('data-id');
+            
+            try {
+                // Получаем текущие специальности мастера
+                const specialtiesResponse = await fetch(`/api/masters/${masterId}/specialties`);
+                if (!specialtiesResponse.ok) {
+                    throw new Error('Ошибка при получении специальностей мастера');
+                }
+                
+                const specialties = await specialtiesResponse.json();
+                const specialtyIds = specialties.map(s => s.id).filter(id => id !== parseInt(specialtyId));
+                
+                // Обновляем специальности мастера
+                const updateResponse = await fetch(`/api/masters/${masterId}/specialties`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ specialty_ids: specialtyIds })
+                });
+                
+                if (!updateResponse.ok) {
+                    throw new Error('Ошибка при обновлении специальностей мастера');
+                }
+                
+                // Закрываем модальное окно и обновляем страницу
+                bootstrap.Modal.getInstance(document.getElementById('removeMasterModal')).hide();
+                window.location.reload();
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert('Произошла ошибка при удалении мастера из специальности');
+            }
+        });
+    });
+</script>
+{% endblock %}

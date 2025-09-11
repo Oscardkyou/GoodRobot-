@@ -1,23 +1,32 @@
 """Handlers for мастер role: setup zones, create bids and track clients."""
-import logging
 import datetime
-from aiogram import Router, F
+import logging
+
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup, Location
-
-from sqlalchemy import select, and_, or_
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
+from sqlalchemy import select
 
 from app.bot.keyboards import (
-    main_menu_keyboard,
+    categories_selection_keyboard,
     master_main_menu_keyboard,
     role_keyboard,
-    tracking_orders_keyboard,
+    specialties_selection_keyboard,
     tracking_actions_keyboard,
-    location_update_request_keyboard,
+    tracking_orders_keyboard,
 )
-from app.bot.states import BidCreate, MasterSetup
-from app.models import Bid, User, Order
+from app.bot.states import (
+    BidCreate,
+    MasterCategorySetup,
+    MasterSpecialtySetup,
+)
+from app.models import Bid, MasterCategory, Order, Specialty, User, master_categories, master_specialties
 from core.db import SessionFactory
 
 logger = logging.getLogger("bot.master")
@@ -47,9 +56,9 @@ async def cmd_menu(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.message(F.text == "📍 Заказы поблизости")
+@router.message(F.text == "📋 Новые заказы")
 async def nearby_orders_button(message: Message, state: FSMContext) -> None:
-    """Обработчик кнопки просмотра заказов поблизости."""
+    """Обработчик кнопки просмотра новых заказов."""
     tg_id = message.from_user.id
 
     async with SessionFactory() as session:
@@ -66,22 +75,22 @@ async def nearby_orders_button(message: Message, state: FSMContext) -> None:
             # Исключаем заказы самого мастера, если он вдруг создал заказ как клиент
             Order.client_id != user.id
         ).order_by(Order.created_at.desc())
-        
+
         # Получаем заказы со статусом "assigned", назначенные этому мастеру
         assigned_orders_query = select(Order).where(
             Order.master_id == user.id,
             Order.status == "assigned"
         ).order_by(Order.created_at.desc())
-        
+
         # Выполняем оба запроса
         new_orders = (await session.execute(new_orders_query)).scalars().all()
         assigned_orders = (await session.execute(assigned_orders_query)).scalars().all()
-        
+
         # Получаем ставки мастера, чтобы отметить заказы, на которые он уже сделал ставку
         bids = (await session.execute(
             select(Bid.order_id).where(Bid.master_id == user.id)
         )).scalars().all()
-        
+
         bid_order_ids = set(bids)
 
         # Structured debug logging
@@ -121,7 +130,7 @@ async def nearby_orders_button(message: Message, state: FSMContext) -> None:
             # Отмечаем, сделал ли мастер ставку на этот заказ
             has_bid = order.id in bid_order_ids
             bid_status = "✓ Ставка сделана" if has_bid else "Ставка не сделана"
-            
+
             order_text = (
                 f"📦 Заказ #{order.id}\n"
                 f"Категория: {order.category}\n"
@@ -132,16 +141,16 @@ async def nearby_orders_button(message: Message, state: FSMContext) -> None:
             keyboard_buttons = [
                 [InlineKeyboardButton(text="Подробнее", callback_data=f"view_order:{order.id}")]
             ]
-            
+
             # Добавляем кнопку ставки только если мастер еще не делал ставку
             if not has_bid:
                 keyboard_buttons.append([InlineKeyboardButton(text="Сделать ставку", callback_data=f"bid:{order.id}")])
             else:
                 keyboard_buttons.append([InlineKeyboardButton(text="Изменить ставку", callback_data=f"edit_bid_order:{order.id}")])
-                
+
             keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
             await message.answer(order_text, reply_markup=keyboard)
-    
+
     # Если нет ни новых, ни назначенных заказов
     if not new_orders and not assigned_orders:
         await message.answer("Пока нет новых заказов, и у вас нет заказов в работе.")
@@ -220,7 +229,7 @@ async def my_bids_button(message: Message, state: FSMContext) -> None:
         bids_with_orders = result.all()
 
     if not bids_with_orders:
-        await message.answer("У вас пока нет ставок. Найдите заказы в разделе 'Заказы поблизости'.")
+        await message.answer("У вас пока нет ставок. Найдите заказы в разделе 'Новые заказы'.")
         return
 
     # Показываем последние 5 ставок
@@ -245,7 +254,7 @@ async def my_bids_button(message: Message, state: FSMContext) -> None:
         await message.answer(bid_text, reply_markup=keyboard)
 
 
-@router.message(F.text == "📝 Мои заказы")
+@router.message(F.text == "📦 Мои заказы")
 async def my_orders_button(message: Message, state: FSMContext) -> None:
     """Обработчик кнопки просмотра заказов мастера."""
     tg_id = message.from_user.id
@@ -261,19 +270,19 @@ async def my_orders_button(message: Message, state: FSMContext) -> None:
         orders_query = select(Order).where(
             Order.master_id == master.id
         ).order_by(Order.created_at.desc())
-        
+
         orders = (await session.execute(orders_query)).scalars().all()
 
     if not orders:
-        await message.answer("У вас пока нет заказов. Найдите заказы в разделе 'Заказы поблизости'.")
+        await message.answer("У вас пока нет заказов. Найдите заказы в разделе 'Новые заказы'.")
         return
 
-    await message.answer("📝 Ваши заказы:")
-    
+    await message.answer("📦 Ваши заказы:")
+
     # Группируем заказы по статусу
-    active_orders = [order for order in orders if order.status in ["assigned", "in_progress"]]
+    active_orders = [order for order in orders if order.status in ["assigned", "inprogress"]]
     completed_orders = [order for order in orders if order.status == "done"]
-    
+
     # Показываем активные заказы
     if active_orders:
         await message.answer("🔵 Активные заказы:")
@@ -290,7 +299,7 @@ async def my_orders_button(message: Message, state: FSMContext) -> None:
             ])
 
             await message.answer(order_text, reply_markup=keyboard)
-    
+
     # Показываем завершенные заказы
     if completed_orders:
         await message.answer("✅ Завершенные заказы:")
@@ -302,6 +311,31 @@ async def my_orders_button(message: Message, state: FSMContext) -> None:
             )
 
             await message.answer(order_text)
+
+
+@router.message(F.text == "👤 Профиль")
+async def profile_button(message: Message) -> None:
+    """Обработчик кнопки 'Профиль' в главном меню мастера."""
+    tg_id = message.from_user.id
+
+    async with SessionFactory() as session:
+        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not user:
+            await message.answer("Вы не зарегистрированы. Используйте /start для начала работы.")
+            return
+
+        profile_text = (
+            f"👤 Ваш профиль:\n\n"
+            f"Имя: {user.name or 'Не указано'}\n"
+            f"Роль: {user.role or 'Не выбрана'}\n"
+            f"ID: {user.tg_id}\n"
+        )
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Изменить роль", callback_data="change_role")]
+        ])
+
+        await message.answer(profile_text, reply_markup=keyboard)
 
 
 @router.message(F.text == "⚙️ Настройки")
@@ -327,9 +361,9 @@ async def settings_button(message: Message) -> None:
         await message.answer(settings_text, reply_markup=keyboard)
 
 
-@router.message(F.text == "🔍 Отслеживание клиентов")
+@router.message(F.text == "📍 Отслеживание")
 async def tracking_clients_button(message: Message, state: FSMContext) -> None:
-    """Обработчик кнопки отслеживания клиентов."""
+    """Обработчик кнопки отслеживания заказов."""
     tg_id = message.from_user.id
 
     async with SessionFactory() as session:
@@ -342,9 +376,9 @@ async def tracking_clients_button(message: Message, state: FSMContext) -> None:
         # Получаем активные заказы мастера
         orders_query = select(Order).where(
             Order.master_id == master.id,
-            Order.status.in_(["assigned", "in_progress"])
+            Order.status.in_(["assigned", "inprogress"])
         ).order_by(Order.created_at.desc())
-        
+
         orders = (await session.execute(orders_query)).scalars().all()
 
     if not orders:
@@ -375,9 +409,9 @@ async def active_orders_button(message: Message, state: FSMContext) -> None:
         # Получаем активные заказы мастера
         orders_query = select(Order).where(
             Order.master_id == master.id,
-            Order.status.in_(["assigned", "in_progress"])
+            Order.status.in_(["assigned", "inprogress"])
         ).order_by(Order.created_at.desc())
-        
+
         orders = (await session.execute(orders_query)).scalars().all()
 
     if not orders:
@@ -385,7 +419,7 @@ async def active_orders_button(message: Message, state: FSMContext) -> None:
         return
 
     await message.answer("📊 Ваши активные заказы:")
-    
+
     for order in orders:
         # Проверяем наличие информации о последнем обновлении геолокации
         location_info = ""
@@ -395,7 +429,7 @@ async def active_orders_button(message: Message, state: FSMContext) -> None:
                 location_info = f"\n📍 Геолокация обновлена {int(time_diff.total_seconds() // 60)} мин. назад"
             else:
                 location_info = f"\n📍 Геолокация обновлена {order.location_updated_at.strftime('%d.%m.%Y %H:%M')}"
-        
+
         order_text = (
             f"📦 Заказ #{order.id}\n"
             f"Категория: {order.category}\n"
@@ -412,6 +446,12 @@ async def active_orders_button(message: Message, state: FSMContext) -> None:
         await message.answer(order_text, reply_markup=keyboard)
 
 
+@router.message(F.text == "💬 Сообщения")
+async def messages_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки 'Сообщения' в главном меню мастера."""
+    await message.answer("💬 Функция сообщений пока недоступна. Используйте встроенный чат Telegram для общения с клиентами.")
+
+
 @router.message(F.text == "❓ Помощь")
 async def help_button(message: Message) -> None:
     """Обработчик кнопки помощи."""
@@ -421,18 +461,225 @@ async def help_button(message: Message) -> None:
         "/start - Начать работу с ботом\n"
         "/menu - Открыть главное меню\n\n"
         "Как работать с заказами:\n"
-        "1. Нажмите 'Заказы поблизости' для поиска доступных заказов\n"
+        "1. Нажмите 'Новые заказы' для поиска доступных заказов\n"
         "2. Нажмите 'Сделать ставку' и укажите вашу цену\n"
         "3. Отслеживайте статус ваших ставок в разделе 'Мои ставки'\n\n"
-        "Отслеживание клиентов:\n"
-        "1. Нажмите 'Отслеживание клиентов' для просмотра активных заказов\n"
-        "2. Выберите заказ для отслеживания\n"
+        "Работа с заказами:\n"
+        "1. Нажмите 'Мои заказы' для просмотра активных заказов\n"
+        "2. Используйте 'Отслеживание' для мониторинга выполнения заказов\n"
         "3. Вы можете запросить обновление геолокации или посмотреть последнюю известную локацию\n\n"
         "Настройки профиля:\n"
         "- Вы можете изменить роль в любой момент\n"
+        "- Настройте свои специализации и категории заказов\n"
+    )
+    await message.answer(help_text)
+
+
+@router.message(F.text == "📂 Категории")
+async def master_categories_entry(message: Message, state: FSMContext) -> None:
+    """Показать выбор категорий заказов для мастера."""
+    tg_id = message.from_user.id
+    async with SessionFactory() as session:
+        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not user or user.role != "master":
+            await message.answer("Вы не зарегистрированы как мастер. Используйте /start для начала работы.")
+            return
+
+        # Получаем текущие выбранные категории мастера
+        result = await session.execute(
+            select(master_categories.c.category).where(master_categories.c.user_id == user.id)
+        )
+        selected_categories = {row[0] for row in result.all()}
+
+    # Получаем список всех доступных категорий
+    all_categories = MasterCategory.CATEGORIES
+
+    await state.set_state(MasterCategorySetup.selecting)
+    await state.update_data(mcat_selected=list(selected_categories))
+    await message.answer(
+        "Выберите категории заказов, которые вы готовы выполнять (нажимайте, чтобы включать/выключать). "
+        "Нажмите 'Готово' для сохранения.",
+        reply_markup=categories_selection_keyboard(all_categories, selected_categories),
     )
 
-    await message.answer(help_text)
+
+@router.callback_query(MasterCategorySetup.selecting, F.data.startswith("mcat:toggle:"))
+async def toggle_master_category(callback: CallbackQuery, state: FSMContext) -> None:
+    """Переключить выбранную категорию и обновить клавиатуру."""
+    try:
+        category = callback.data.split(":", 2)[2]
+    except Exception:
+        await callback.answer("Некорректная категория", show_alert=True)
+        return
+
+    data = await state.get_data()
+    selected = set(data.get("mcat_selected", []))
+    if category in selected:
+        selected.remove(category)
+    else:
+        selected.add(category)
+    await state.update_data(mcat_selected=list(selected))
+
+    # Получаем список всех доступных категорий
+    all_categories = MasterCategory.CATEGORIES
+
+    # Обновляем только разметку клавиатуры
+    try:
+        await callback.message.edit_reply_markup(
+            reply_markup=categories_selection_keyboard(all_categories, selected)
+        )
+    except Exception:
+        await callback.message.answer(
+            "Обновлено.",
+            reply_markup=categories_selection_keyboard(all_categories, selected),
+        )
+    await callback.answer()
+
+
+@router.callback_query(MasterCategorySetup.selecting, F.data == "mcat:done")
+async def save_master_categories(callback: CallbackQuery, state: FSMContext) -> None:
+    """Сохранить выбранные категории мастера."""
+    tg_id = callback.from_user.id
+    data = await state.get_data()
+    selected_categories = set(data.get("mcat_selected", []))
+
+    async with SessionFactory() as session:
+        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not user or user.role != "master":
+            await callback.answer("Вы не зарегистрированы как мастер", show_alert=True)
+            return
+
+        # Удаляем все текущие категории мастера
+        await session.execute(
+            master_categories.delete().where(master_categories.c.user_id == user.id)
+        )
+
+        # Добавляем выбранные категории
+        if selected_categories:
+            for category in selected_categories:
+                await session.execute(
+                    master_categories.insert().values(
+                        user_id=user.id,
+                        category=category
+                    )
+                )
+
+        await session.commit()
+
+    await state.clear()
+    categories_text = ", ".join(selected_categories) if selected_categories else "—"
+    try:
+        await callback.message.edit_text(f"Сохранено. Ваши категории заказов: {categories_text}")
+    except Exception:
+        await callback.message.answer(f"Сохранено. Ваши категории заказов: {categories_text}")
+    await callback.message.answer("Главное меню мастера:", reply_markup=master_main_menu_keyboard())
+    await callback.answer("Сохранено")
+
+
+@router.message(F.text == "🔧 Специализации")
+async def master_specialties_entry(message: Message, state: FSMContext) -> None:
+    """Показать выбор специализаций для мастера."""
+    tg_id = message.from_user.id
+    async with SessionFactory() as session:
+        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not user or user.role != "master":
+            await message.answer("Вы не зарегистрированы как мастер. Используйте /start для начала работы.")
+            return
+        all_specs = (
+            await session.execute(
+                select(Specialty).where(Specialty.is_active == True).order_by(Specialty.name)
+            )
+        ).scalars().all()
+        
+        # Загружаем специальности пользователя явно через запрос вместо lazy-loading
+        user_specs = (
+            await session.execute(
+                select(Specialty)
+                .join(master_specialties)
+                .where(master_specialties.c.user_id == user.id)
+            )
+        ).scalars().all()
+        selected_ids = {s.id for s in user_specs}
+
+    if not all_specs:
+        await message.answer("Список специализаций пуст. Обратитесь к администратору.")
+        return
+
+    await state.set_state(MasterSpecialtySetup.selecting)
+    await state.update_data(mspec_selected=list(selected_ids))
+    await message.answer(
+        "Выберите ваши специализации (нажимайте, чтобы включать/выключать). Нажмите 'Готово' для сохранения.",
+        reply_markup=specialties_selection_keyboard(all_specs, selected_ids),
+    )
+
+
+@router.callback_query(MasterSpecialtySetup.selecting, F.data.startswith("mspec:toggle:"))
+async def toggle_master_specialty(callback: CallbackQuery, state: FSMContext) -> None:
+    """Переключить выбранную специализацию и обновить клавиатуру."""
+    try:
+        spec_id = int(callback.data.split(":", 2)[2])
+    except Exception:
+        await callback.answer("Некорректный идентификатор", show_alert=True)
+        return
+
+    data = await state.get_data()
+    selected = set(data.get("mspec_selected", []))
+    if spec_id in selected:
+        selected.remove(spec_id)
+    else:
+        selected.add(spec_id)
+    await state.update_data(mspec_selected=list(selected))
+
+    async with SessionFactory() as session:
+        all_specs = (
+            await session.execute(
+                select(Specialty).where(Specialty.is_active == True).order_by(Specialty.name)
+            )
+        ).scalars().all()
+
+    # Обновляем только разметку клавиатуры
+    try:
+        await callback.message.edit_reply_markup(
+            reply_markup=specialties_selection_keyboard(all_specs, selected)
+        )
+    except Exception:
+        await callback.message.answer(
+            "Обновлено.",
+            reply_markup=specialties_selection_keyboard(all_specs, selected),
+        )
+    await callback.answer()
+
+
+@router.callback_query(MasterSpecialtySetup.selecting, F.data == "mspec:done")
+async def save_master_specialties(callback: CallbackQuery, state: FSMContext) -> None:
+    """Сохранить выбранные специализации мастера."""
+    tg_id = callback.from_user.id
+    data = await state.get_data()
+    selected_ids = set(data.get("mspec_selected", []))
+
+    async with SessionFactory() as session:
+        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not user or user.role != "master":
+            await callback.answer("Вы не зарегистрированы как мастер", show_alert=True)
+            return
+
+        specs = []
+        if selected_ids:
+            specs = (
+                await session.execute(select(Specialty).where(Specialty.id.in_(selected_ids)))
+            ).scalars().all()
+
+        user.specialties = specs
+        await session.commit()
+
+    await state.clear()
+    names = ", ".join([s.name for s in specs]) if specs else "—"
+    try:
+        await callback.message.edit_text(f"Сохранено. Ваши специализации: {names}")
+    except Exception:
+        await callback.message.answer(f"Сохранено. Ваши специализации: {names}")
+    await callback.message.answer("Главное меню мастера:", reply_markup=master_main_menu_keyboard())
+    await callback.answer("Сохранено")
 
 
 @router.callback_query(F.data.startswith("track_order:"))
@@ -500,7 +747,7 @@ async def track_order_callback(callback: CallbackQuery, state: FSMContext) -> No
             order_text,
             reply_markup=tracking_actions_keyboard(order.id)
         )
-    
+
     await callback.answer()
 
 
@@ -616,46 +863,46 @@ async def complete_order(callback: CallbackQuery, state: FSMContext) -> None:
     except Exception:
         await callback.answer("Некорректный идентификатор заказа", show_alert=True)
         return
-        
+
     tg_id = callback.from_user.id
     logger.info("master_cb:complete_order", extra={"user_id": tg_id, "order_id": order_id})
-    
+
     async with SessionFactory() as session:
         # Получаем мастера
         master = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
         if not master:
             await callback.answer("Пользователь не найден", show_alert=True)
             return
-            
+
         # Получаем заказ
         order = (await session.execute(select(Order).where(Order.id == order_id))).scalars().first()
         if not order:
             await callback.answer("Заказ не найден", show_alert=True)
             return
-            
+
         # Проверяем, что заказ назначен этому мастеру
         if order.master_id != master.id:
             await callback.answer("Этот заказ не назначен вам", show_alert=True)
             return
-            
+
         # Проверяем, что заказ в статусе "assigned"
         if order.status != "assigned":
             await callback.answer("Заказ не находится в работе", show_alert=True)
             return
-            
+
         # Получаем клиента
         client = (await session.execute(select(User).where(User.id == order.client_id))).scalars().first()
-        
+
         # Обновляем статус заказа
         order.status = "done"
         await session.commit()
-    
+
     # Отправляем сообщение мастеру
     await callback.message.edit_text(
         f"Заказ #{order_id} отмечен как выполненный.\n"
         f"Клиент будет уведомлен о завершении заказа."
     )
-    
+
     # Отправляем уведомление клиенту
     if client and client.tg_id:
         try:
@@ -672,7 +919,7 @@ async def complete_order(callback: CallbackQuery, state: FSMContext) -> None:
             )
         except Exception:
             logger.error("Failed to notify client", extra={"client_id": client.id, "order_id": order_id})
-    
+
     await callback.answer("Заказ успешно завершен!", show_alert=True)
 
 
@@ -684,7 +931,7 @@ async def edit_bid_by_order(callback: CallbackQuery, state: FSMContext) -> None:
     except Exception:
         await callback.answer("Некорректный идентификатор заказа", show_alert=True)
         return
-        
+
     tg_id = callback.from_user.id
     async with SessionFactory() as session:
         # Получаем мастера
@@ -692,16 +939,16 @@ async def edit_bid_by_order(callback: CallbackQuery, state: FSMContext) -> None:
         if not master:
             await callback.answer("Пользователь не найден", show_alert=True)
             return
-            
+
         # Получаем ставку мастера на этот заказ
         bid = (await session.execute(
             select(Bid).where(Bid.order_id == order_id, Bid.master_id == master.id)
         )).scalars().first()
-        
+
         if not bid:
             await callback.answer("Ставка не найдена", show_alert=True)
             return
-    
+
     # Перенаправляем на обработчик изменения ставки
     await edit_bid_price(callback, state, bid_id=bid.id)
 

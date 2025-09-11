@@ -1,12 +1,12 @@
+
 import pytest
-import json
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
-from app.models.user import User
-from app.models.order import Order
 from admin.app.main import app
+from app.models.order import Order
+from app.models.user import User
+
 
 @pytest.fixture
 async def client():
@@ -80,7 +80,7 @@ async def test_get_order_by_id(client, test_admin_user, test_order):
 async def test_update_order_status(client, test_admin_user, test_order, db: AsyncSession):
     # Тест обновления статуса заказа
     response = client.put(
-        f"/api/orders/{test_order.id}", 
+        f"/api/orders/{test_order.id}",
         json={"status": "in_progress"},
         headers={"Authorization": f"Bearer {test_admin_user.id}"}
     )

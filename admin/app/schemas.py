@@ -1,11 +1,12 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from datetime import datetime, date
+from datetime import datetime
 from enum import Enum
 
+from pydantic import BaseModel
+
+
 class TokenData(BaseModel):
-    username: Optional[str] = None
-    scopes: List[str] = []
+    username: str | None = None
+    scopes: list[str] = []
 
 class Token(BaseModel):
     access_token: str
@@ -20,31 +21,31 @@ class UserRole(str, Enum):
 
 class UserBase(BaseModel):
     username: str
-    full_name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
     role: UserRole
     is_active: bool = True
 
 class UserCreate(UserBase):
-    password: Optional[str] = None
-    telegram_id: Optional[int] = None
-    zones: Optional[List[int]] = None
+    password: str | None = None
+    telegram_id: int | None = None
+    zones: list[int] | None = None
 
 class UserUpdate(BaseModel):
-    full_name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    role: Optional[UserRole] = None
-    is_active: Optional[bool] = None
-    password: Optional[str] = None
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    role: UserRole | None = None
+    is_active: bool | None = None
+    password: str | None = None
 
 class UserResponse(UserBase):
     id: int
-    telegram_id: Optional[int] = None
+    telegram_id: int | None = None
     created_at: datetime
-    last_login: Optional[datetime] = None
-    zones: Optional[List[int]] = None
+    last_login: datetime | None = None
+    zones: list[int] | None = None
 
     class Config:
         from_attributes = True
@@ -62,28 +63,28 @@ class OrderBase(BaseModel):
     price: float
     client_id: int
     status: OrderStatus = OrderStatus.NEW
-    address: Optional[str] = None
-    latitude: Optional[str] = None
-    longitude: Optional[str] = None
+    address: str | None = None
+    latitude: str | None = None
+    longitude: str | None = None
 
 class OrderCreate(OrderBase):
     pass
 
 class OrderUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
-    status: Optional[OrderStatus] = None
-    address: Optional[str] = None
-    latitude: Optional[str] = None
-    longitude: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    price: float | None = None
+    status: OrderStatus | None = None
+    address: str | None = None
+    latitude: str | None = None
+    longitude: str | None = None
 
 class OrderResponse(OrderBase):
     id: int
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    client_username: Optional[str] = None
-    
+    updated_at: datetime | None = None
+    client_username: str | None = None
+
     class Config:
         from_attributes = True
 
@@ -97,24 +98,24 @@ class BidBase(BaseModel):
     order_id: int
     master_id: int
     price: float
-    comment: Optional[str] = None
+    comment: str | None = None
     status: BidStatus = BidStatus.PENDING
 
 class BidCreate(BidBase):
     pass
 
 class BidUpdate(BaseModel):
-    price: Optional[float] = None
-    comment: Optional[str] = None
-    status: Optional[BidStatus] = None
+    price: float | None = None
+    comment: str | None = None
+    status: BidStatus | None = None
 
 class BidResponse(BidBase):
     id: int
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    master_username: Optional[str] = None
-    order_title: Optional[str] = None
-    
+    updated_at: datetime | None = None
+    master_username: str | None = None
+    order_title: str | None = None
+
     class Config:
         from_attributes = True
 
@@ -128,21 +129,21 @@ class PayoutBase(BaseModel):
     user_id: int
     amount: float
     status: PayoutStatus = PayoutStatus.PENDING
-    details: Optional[str] = None
+    details: str | None = None
 
 class PayoutCreate(PayoutBase):
     pass
 
 class PayoutUpdate(BaseModel):
-    amount: Optional[float] = None
-    status: Optional[PayoutStatus] = None
-    details: Optional[str] = None
+    amount: float | None = None
+    status: PayoutStatus | None = None
+    details: str | None = None
 
 class PayoutResponse(PayoutBase):
     id: int
     created_at: datetime
-    processed_at: Optional[datetime] = None
-    user_username: Optional[str] = None
-    
+    processed_at: datetime | None = None
+    user_username: str | None = None
+
     class Config:
         from_attributes = True

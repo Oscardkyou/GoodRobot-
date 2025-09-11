@@ -1,7 +1,8 @@
 """SQLAlchemy model for Order."""
+from typing import TYPE_CHECKING, Optional
+
 from sqlalchemy import (
     BigInteger,
-    Column,
     DateTime,
     Enum,
     ForeignKey,
@@ -11,9 +12,15 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+
+if TYPE_CHECKING:
+    from .bid import Bid
+    from .payout import Payout
+    from .rating import Rating
+    from .user import User
 
 
 class Order(Base):
@@ -22,19 +29,19 @@ class Order(Base):
         Index("ix_orders_category_status", "category", "status"),
     )
 
-    id = Column(BigInteger, primary_key=True, index=True)
-    client_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
-    master_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)  # ID мастера, которому назначен заказ
-    category = Column(String, nullable=False, index=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
+    client_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
+    master_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=True)  # ID мастера, которому назначен заказ
+    category: Mapped[str] = mapped_column(String, nullable=False, index=True)
     # zone поле удалено
-    address = Column(String)
-    latitude = Column(String, nullable=True)  # Широта в формате строки для совместимости
-    longitude = Column(String, nullable=True)  # Долгота в формате строки для совместимости
-    location_updated_at = Column(DateTime, nullable=True)  # Время последнего обновления геолокации
-    when_at = Column(DateTime)
-    description = Column(Text)
-    media = Column(ARRAY(String))
-    status = Column(
+    address: Mapped[str | None] = mapped_column(String)
+    latitude: Mapped[str | None] = mapped_column(String, nullable=True)  # Широта в формате строки для совместимости
+    longitude: Mapped[str | None] = mapped_column(String, nullable=True)  # Долгота в формате строки для совместимости
+    location_updated_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)  # Время последнего обновления геолокации
+    when_at: Mapped[DateTime | None] = mapped_column(DateTime)
+    description: Mapped[str | None] = mapped_column(Text)
+    media: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    status: Mapped[str] = mapped_column(
         Enum(
             "new", "assigned", "done", "cancelled", name="order_status_enum"
         ),
@@ -42,14 +49,14 @@ class Order(Base):
         nullable=False,
         index=True,
     )
-    created_at = Column(DateTime, server_default=func.now())
+    created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    client = relationship("User", foreign_keys=[client_id], back_populates="orders")
-    master = relationship("User", foreign_keys=[master_id], back_populates="master_orders")
-    bids = relationship("Bid", back_populates="order")
-    rating = relationship("Rating", back_populates="order", uselist=False)
-    payout = relationship("Payout", back_populates="order", uselist=False)
+    client: Mapped["User"] = relationship("User", foreign_keys=[client_id], back_populates="orders")
+    master: Mapped[Optional["User"]] = relationship("User", foreign_keys=[master_id], back_populates="master_orders")
+    bids: Mapped[list["Bid"]] = relationship("Bid", back_populates="order")
+    rating: Mapped[Optional["Rating"]] = relationship("Rating", back_populates="order", uselist=False)
+    payout: Mapped[Optional["Payout"]] = relationship("Payout", back_populates="order", uselist=False)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Order(id={self.id}, client_id={self.client_id}, status='{self.status}')>"

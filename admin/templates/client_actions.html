@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}Действия клиентов{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Действия клиентов</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="/">Главная</a></li>
+        <li class="breadcrumb-item active">Действия клиентов</li>
+    </ol>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-table me-1"></i>
+                    Журнал действий клиентов
+                </div>
+                <div class="d-flex">
+                    <input type="text" id="searchInput" class="form-control me-2" placeholder="Поиск...">
+                    <select id="actionTypeFilter" class="form-select me-2">
+                        <option value="">Все типы действий</option>
+                        <option value="create_order">Создание заказа</option>
+                        <option value="view_master">Просмотр мастера</option>
+                        <option value="select_master">Выбор мастера</option>
+                    </select>
+                    <button id="refreshBtn" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="clientActionsTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Клиент</th>
+                            <th>Тип действия</th>
+                            <th>Описание</th>
+                            <th>Дата и время</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientActionsTableBody">
+                        <!-- Данные будут загружены через JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div>
+                    <span id="totalCount">0</span> записей
+                </div>
+                <div>
+                    <button id="prevPageBtn" class="btn btn-sm btn-outline-secondary me-2">
+                        <i class="fas fa-chevron-left"></i> Назад
+                    </button>
+                    <span id="currentPage">1</span> из <span id="totalPages">1</span>
+                    <button id="nextPageBtn" class="btn btn-sm btn-outline-secondary ms-2">
+                        Вперед <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для просмотра деталей -->
+<div class="modal fade" id="actionDetailsModal" tabindex="-1" aria-labelledby="actionDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="actionDetailsModalLabel">Детали действия</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>ID действия:</strong> <span id="modalActionId"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Дата и время:</strong> <span id="modalActionDate"></span>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Клиент:</strong> <span id="modalClientName"></span> (#<span id="modalClientId"></span>)
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Тип действия:</strong> <span id="modalActionType"></span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <strong>Описание:</strong>
+                    <p id="modalDescription"></p>
+                </div>
+                <div>
+                    <strong>Метаданные:</strong>
+                    <pre id="modalMetadata" class="bg-light p-3 rounded"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Глобальные переменные для пагинации
+    let currentPage = 1;
+    let pageSize = 20;
+    let totalItems = 0;
+    let currentFilter = {
+        search: '',
+        actionType: ''
+    };
+
+    // Загрузка данных с сервера
+    async function loadClientActions() {
+        try {
+            const skip = (currentPage - 1) * pageSize;
+            let url = `/client-actions/api?skip=${skip}&limit=${pageSize}`;
+            
+            if (currentFilter.actionType) {
+                url += `&action_type=${encodeURIComponent(currentFilter.actionType)}`;
+            }
+            
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Ошибка загрузки данных');
+            }
+            
+            const data = await response.json();
+            renderClientActions(data);
+            
+            // Обновляем информацию о пагинации
+            totalItems = data.length >= pageSize ? (currentPage * pageSize) + 1 : (currentPage - 1) * pageSize + data.length;
+            document.getElementById('totalCount').textContent = totalItems;
+            
+            const totalPages = Math.ceil(totalItems / pageSize) || 1;
+            document.getElementById('totalPages').textContent = totalPages;
+            document.getElementById('currentPage').textContent = currentPage;
+            
+            // Управление кнопками пагинации
+            document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+            document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
+        } catch (error) {
+            console.error('Ошибка при загрузке действий клиентов:', error);
+            alert('Не удалось загрузить данные. Пожалуйста, проверьте соединение и авторизацию.');
+        }
+    }
+
+    // Отображение данных в таблице
+    function renderClientActions(actions) {
+        const tableBody = document.getElementById('clientActionsTableBody');
+        tableBody.innerHTML = '';
+        
+        if (actions.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="6" class="text-center">Нет данных</td>';
+            tableBody.appendChild(row);
+            return;
+        }
+        
+        actions.forEach(action => {
+            const row = document.createElement('tr');
+            
+            // Форматирование даты
+            const date = new Date(action.created_at);
+            const formattedDate = date.toLocaleString('ru-RU');
+            
+            // Определение типа действия для отображения
+            let actionTypeDisplay = action.action_type;
+            switch (action.action_type) {
+                case 'create_order':
+                    actionTypeDisplay = 'Создание заказа';
+                    break;
+                case 'view_master':
+                    actionTypeDisplay = 'Просмотр мастера';
+                    break;
+                case 'select_master':
+                    actionTypeDisplay = 'Выбор мастера';
+                    break;
+                // Другие типы действий...
+            }
+            
+            row.innerHTML = `
+                <td>${action.id}</td>
+                <td>${action.user_name} (#${action.user_id})</td>
+                <td>${actionTypeDisplay}</td>
+                <td>${action.description || '-'}</td>
+                <td>${formattedDate}</td>
+                <td>
+                    <button class="btn btn-sm btn-info view-details" data-id="${action.id}">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            `;
+            
+            tableBody.appendChild(row);
+            
+            // Добавляем обработчик для кнопки просмотра деталей
+            const viewButton = row.querySelector('.view-details');
+            viewButton.addEventListener('click', () => showActionDetails(action));
+        });
+    }
+
+    // Показ модального окна с деталями действия
+    function showActionDetails(action) {
+        document.getElementById('modalActionId').textContent = action.id;
+        document.getElementById('modalClientId').textContent = action.user_id;
+        document.getElementById('modalClientName').textContent = action.user_name;
+        document.getElementById('modalActionType').textContent = action.action_type;
+        document.getElementById('modalDescription').textContent = action.description || 'Нет описания';
+        
+        // Форматирование даты
+        const date = new Date(action.created_at);
+        document.getElementById('modalActionDate').textContent = date.toLocaleString('ru-RU');
+        
+        // Форматирование JSON метаданных
+        const metadataElement = document.getElementById('modalMetadata');
+        if (action.metadata && Object.keys(action.metadata).length > 0) {
+            metadataElement.textContent = JSON.stringify(action.metadata, null, 2);
+            metadataElement.style.display = 'block';
+        } else {
+            metadataElement.textContent = 'Нет метаданных';
+            metadataElement.style.display = 'block';
+        }
+        
+        // Показываем модальное окно
+        const modal = new bootstrap.Modal(document.getElementById('actionDetailsModal'));
+        modal.show();
+    }
+
+    // Обработчики событий
+    document.addEventListener('DOMContentLoaded', function() {
+        // Загрузка данных при загрузке страницы
+        loadClientActions();
+        
+        // Обработчик для кнопки обновления
+        document.getElementById('refreshBtn').addEventListener('click', loadClientActions);
+        
+        // Обработчики пагинации
+        document.getElementById('prevPageBtn').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                loadClientActions();
+            }
+        });
+        
+        document.getElementById('nextPageBtn').addEventListener('click', () => {
+            currentPage++;
+            loadClientActions();
+        });
+        
+        // Фильтр по типу действия
+        document.getElementById('actionTypeFilter').addEventListener('change', function() {
+            currentFilter.actionType = this.value;
+            currentPage = 1;
+            loadClientActions();
+        });
+        
+        // Поиск
+        const searchInput = document.getElementById('searchInput');
+        let searchTimeout;
+        
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentFilter.search = this.value.trim();
+                currentPage = 1;
+                loadClientActions();
+            }, 500);
+        });
+    });
+</script>
+{% endblock %}

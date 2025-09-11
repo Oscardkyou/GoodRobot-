@@ -1,7 +1,9 @@
 """Tests for bid edit/cancel features."""
 import asyncio
+
 from sqlalchemy import select
-from app.models import Bid, User, Order
+
+from app.models import Bid, Order, User
 from core.db import SessionFactory
 
 

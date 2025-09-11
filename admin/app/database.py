@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+
 from core.config import get_settings
 
 # Получаем настройки
@@ -14,10 +15,10 @@ engine = create_async_engine(
 
 # Создаем фабрику сессий
 AsyncSessionLocal = sessionmaker(
-    engine, 
-    class_=AsyncSession, 
+    engine,
+    class_=AsyncSession,
     expire_on_commit=False,
-    autocommit=False, 
+    autocommit=False,
     autoflush=False
 )
 

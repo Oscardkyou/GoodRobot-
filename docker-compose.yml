@@ -14,7 +14,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
+      
   bot:
     build: .
     command: sh -c "python scripts/wait_for_db.py && sh scripts/entrypoint_bot.sh"
@@ -27,7 +27,9 @@ services:
       - .:/app
 
   admin:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
     command: sh -c "python scripts/wait_for_db.py && sh scripts/entrypoint_admin.sh"
     depends_on:
       postgres:
@@ -38,6 +40,6 @@ services:
       - .env
     volumes:
       - .:/app
-
+      
 volumes:
   pgdata:

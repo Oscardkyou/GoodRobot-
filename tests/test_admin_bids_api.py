@@ -1,13 +1,13 @@
+
 import pytest
-import json
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
-from app.models.user import User
-from app.models.order import Order
-from app.models.bid import Bid
 from admin.app.main import app
+from app.models.bid import Bid
+from app.models.order import Order
+from app.models.user import User
+
 
 @pytest.fixture
 async def client():

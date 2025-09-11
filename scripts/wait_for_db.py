@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import os
-import time
 import sys
+import time
+
 import psycopg2
 
 HOST = os.getenv("POSTGRES_HOST", "localhost")

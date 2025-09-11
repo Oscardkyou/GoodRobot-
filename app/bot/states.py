@@ -17,6 +17,14 @@ class MasterSetup(StatesGroup):
     zones = State()
 
 
+class MasterSpecialtySetup(StatesGroup):
+    selecting = State()
+
+
+class MasterCategorySetup(StatesGroup):
+    selecting = State()
+
+
 class BidCreate(StatesGroup):
     price = State()
 

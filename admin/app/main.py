@@ -1,5 +1,4 @@
 from datetime import datetime
-import os
 
 # Импортируем функцию create_app из admin/app/__init__.py
 from admin.app import create_app

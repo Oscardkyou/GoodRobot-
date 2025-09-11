@@ -1,10 +1,8 @@
-from logging.config import fileConfig
 import os
 import sys
+from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-from sqlalchemy.engine import URL
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
@@ -14,10 +12,11 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 # Import settings and models
-from core.config import Settings  # type: ignore
-from app.models.base import Base  # type: ignore
 # Import all models so that metadata is aware of tables for autogenerate
-from app.models import user, order, bid, rating, partner, payout  # noqa: F401
+from app.models import bid, order, partner, payout, rating, user  # noqa: F401
+from app.models import chat  # noqa: F401  # ensure chat models are loaded
+from app.models.base import Base  # type: ignore
+from core.config import Settings  # type: ignore
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

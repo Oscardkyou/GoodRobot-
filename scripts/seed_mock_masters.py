@@ -1,10 +1,10 @@
 import asyncio
-from sqlalchemy import select, or_
 
-from core.db import SessionFactory
-from app.models.user import User
+from sqlalchemy import or_, select
+
 from admin.app.auth import get_password_hash
-
+from app.models.user import User
+from core.db import SessionFactory
 
 MASTERS = [
     {

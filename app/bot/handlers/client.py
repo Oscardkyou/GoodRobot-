@@ -1,25 +1,30 @@
 """Client (заказчик) handlers and order creation flow."""
-import logging
 import datetime
-from aiogram import Router, F, types
-from aiogram.filters import Command, StateFilter
-from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+import logging
 
-from sqlalchemy import select, func
+from aiogram import F, Router
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    Message,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+)
+from geopy.geocoders import Nominatim
+from sqlalchemy import func, select
 
 from app.bot.keyboards import (
     categories_keyboard,
     confirm_keyboard,
-    media_keyboard,
-    role_keyboard,
     main_menu_keyboard,
-    add_back_button,
+    role_keyboard,
 )
-from app.bot.states import MasterSetup, OrderCreate, ClientActions
-from app.models import Order, User, Partner, Bid
+from app.bot.states import ClientActions, OrderCreate
+from app.models import Bid, Order, Partner, User
 from core.db import SessionFactory
 
 logger = logging.getLogger("bot.client")
@@ -64,6 +69,26 @@ def location_request_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+@router.message(F.text == "➕ Новый заказ")
+async def create_order_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки 'Новый заказ' в главном меню клиента."""
+    await state.set_state(OrderCreate.category)
+    await message.answer(
+        "Выберите категорию для вашего заказа:",
+        reply_markup=categories_keyboard()
+    )
+
+
+@router.message(F.text == "📂 Все категории")
+async def categories_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки 'Все категории' в главном меню клиента."""
+    await state.set_state(OrderCreate.category)
+    await message.answer(
+        "Выберите категорию для вашего заказа:",
+        reply_markup=categories_keyboard()
+    )
+
+
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext) -> None:
     """Greet user, ensure DB record, propose role selection."""
@@ -98,7 +123,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
                 try:
                     await message.bot.send_message(
                         chat_id=referrer.tg_id,
-                        text=f"🎉 Новый пользователь зарегистрировался по вашей реферальной ссылке!"
+                        text="🎉 Новый пользователь зарегистрировался по вашей реферальной ссылке!"
                     )
                 except Exception:
                     pass
@@ -123,14 +148,13 @@ async def choose_role(callback: CallbackQuery, state: FSMContext) -> None:
 
     if role == "client":
         await callback.message.edit_text(
-            "Отлично! Вы клиент. Выберите категорию заявки:",
-            reply_markup=categories_keyboard(with_back=False),
+            "Отлично! Вы клиент. Теперь вы можете создать заказ и выбрать специалиста."
         )
         await callback.message.answer(
             "Используйте /menu для вызова главного меню в любой момент.",
             reply_markup=main_menu_keyboard()
         )
-        await state.set_state(OrderCreate.category)
+        await state.clear()
     elif role == "master":
         await callback.message.edit_text(
             "Вы выбрали роль Мастер."
@@ -252,11 +276,11 @@ async def order_bids_list(callback: CallbackQuery, state: FSMContext) -> None:
 async def process_category_selection(callback: CallbackQuery, state: FSMContext) -> None:
     category = callback.data.split(":")[1]
     await state.update_data(category=category)
-    
+
     await state.set_state(OrderCreate.location)
     # Сначала отправляем сообщение с inline клавиатурой
     await callback.message.edit_text(
-        "Выберите способ указания местоположения:", 
+        "Выберите способ указания местоположения:",
         reply_markup=inline_location_keyboard()
     )
     # Затем отправляем новое сообщение с клавиатурой для запроса геолокации
@@ -310,7 +334,7 @@ async def back_to_location(callback: CallbackQuery, state: FSMContext):
     await state.set_state(OrderCreate.location)
     # Отправляем inline клавиатуру
     await callback.message.edit_text(
-        "Выберите способ указания местоположения:", 
+        "Выберите способ указания местоположения:",
         reply_markup=inline_location_keyboard()
     )
     # Отправляем клавиатуру для запроса геолокации
@@ -327,13 +351,13 @@ async def process_location(message: Message, state: FSMContext) -> None:
     # Получаем координаты из объекта геолокации
     latitude = message.location.latitude
     longitude = message.location.longitude
-    
+
     # Сохраняем координаты в состоянии
     await state.update_data(latitude=latitude, longitude=longitude)
-    
+
     # Переходим к следующему шагу - описанию заказа
     await state.set_state(OrderCreate.description)
-    
+
     # Отправляем сообщение с подтверждением получения геолокации
     await message.answer(
         f"Геолокация получена: {latitude}, {longitude}\n\nТеперь опишите вашу проблему или задачу:",
@@ -347,11 +371,11 @@ async def update_client_location(message: Message, state: FSMContext) -> None:
     # Получаем координаты из объекта геолокации
     latitude = message.location.latitude
     longitude = message.location.longitude
-    
+
     # Получаем данные из состояния
     data = await state.get_data()
     master_id = data.get("location_master_id")
-    
+
     if not master_id:
         await message.answer(
             "Не удалось определить мастера, запросившего геолокацию.",
@@ -359,9 +383,9 @@ async def update_client_location(message: Message, state: FSMContext) -> None:
         )
         await state.clear()
         return
-    
+
     tg_id = message.from_user.id
-    
+
     async with SessionFactory() as session:
         # Получаем клиента
         client = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
@@ -372,7 +396,7 @@ async def update_client_location(message: Message, state: FSMContext) -> None:
             )
             await state.clear()
             return
-            
+
         # Получаем мастера
         master = (await session.execute(select(User).where(User.id == master_id))).scalars().first()
         if not master or not master.tg_id:
@@ -382,16 +406,16 @@ async def update_client_location(message: Message, state: FSMContext) -> None:
             )
             await state.clear()
             return
-            
+
         # Получаем активный заказ между клиентом и мастером
         order = (await session.execute(
             select(Order).where(
                 Order.client_id == client.id,
                 Order.master_id == master.id,
-                Order.status.in_(["assigned", "in_progress"])
+                Order.status.in_(["assigned", "inprogress"])
             ).order_by(Order.created_at.desc())
         )).scalars().first()
-        
+
         if not order:
             await message.answer(
                 "Не найден активный заказ с этим мастером.",
@@ -399,20 +423,20 @@ async def update_client_location(message: Message, state: FSMContext) -> None:
             )
             await state.clear()
             return
-            
+
         # Обновляем геолокацию в заказе
         order.latitude = latitude
         order.longitude = longitude
         order.location_updated_at = datetime.datetime.now()
         await session.commit()
-        
+
         # Отправляем уведомление мастеру
         try:
             await message.bot.send_message(
                 chat_id=master.tg_id,
                 text=f"✅ Клиент {client.name or 'клиент'} обновил геолокацию для заказа #{order.id}."
             )
-            
+
             # Отправляем мастеру карту с местоположением клиента
             await message.bot.send_location(
                 chat_id=master.tg_id,
@@ -429,13 +453,13 @@ async def update_client_location(message: Message, state: FSMContext) -> None:
                     "error": str(e)
                 }
             )
-    
+
     # Отправляем подтверждение клиенту
     await message.answer(
         "✅ Ваша геолокация успешно обновлена и отправлена мастеру.",
         reply_markup=main_menu_keyboard()
     )
-    
+
     # Очищаем состояние
     await state.clear()
 
@@ -446,7 +470,7 @@ async def decline_location_update(callback: CallbackQuery, state: FSMContext):
     # Получаем данные из состояния
     data = await state.get_data()
     master_id = data.get("location_master_id")
-    
+
     if not master_id:
         await callback.message.edit_text(
             "Не удалось определить мастера, запросившего геолокацию."
@@ -454,9 +478,9 @@ async def decline_location_update(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         await state.clear()
         return
-    
+
     tg_id = callback.from_user.id
-    
+
     async with SessionFactory() as session:
         # Получаем клиента
         client = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
@@ -467,7 +491,7 @@ async def decline_location_update(callback: CallbackQuery, state: FSMContext):
             await callback.answer()
             await state.clear()
             return
-            
+
         # Получаем мастера
         master = (await session.execute(select(User).where(User.id == master_id))).scalars().first()
         if not master or not master.tg_id:
@@ -477,16 +501,16 @@ async def decline_location_update(callback: CallbackQuery, state: FSMContext):
             await callback.answer()
             await state.clear()
             return
-            
+
         # Получаем активный заказ между клиентом и мастером
         order = (await session.execute(
             select(Order).where(
                 Order.client_id == client.id,
                 Order.master_id == master.id,
-                Order.status.in_(["assigned", "in_progress"])
+                Order.status.in_(["assigned", "inprogress"])
             ).order_by(Order.created_at.desc())
         )).scalars().first()
-        
+
         if not order:
             await callback.message.edit_text(
                 "Не найден активный заказ с этим мастером."
@@ -494,7 +518,7 @@ async def decline_location_update(callback: CallbackQuery, state: FSMContext):
             await callback.answer()
             await state.clear()
             return
-        
+
         # Отправляем уведомление мастеру об отказе
         try:
             await callback.bot.send_message(
@@ -511,7 +535,7 @@ async def decline_location_update(callback: CallbackQuery, state: FSMContext):
                     "error": str(e)
                 }
             )
-    
+
     # Отправляем подтверждение клиенту
     await callback.message.edit_text(
         "Вы отказались от обновления геолокации."
@@ -520,7 +544,7 @@ async def decline_location_update(callback: CallbackQuery, state: FSMContext):
         "Вы можете обновить геолокацию позже, если мастер запросит её снова.",
         reply_markup=main_menu_keyboard()
     )
-    
+
     # Очищаем состояние
     await state.clear()
     await callback.answer()
@@ -530,7 +554,7 @@ async def decline_location_update(callback: CallbackQuery, state: FSMContext):
 async def back_to_category_handler(callback: CallbackQuery, state: FSMContext):
     await state.set_state(OrderCreate.category)
     await callback.message.edit_text(
-        "Выберите категорию заявки:", 
+        "Выберите категорию заявки:",
         reply_markup=categories_keyboard()
     )
     await callback.answer()
@@ -546,14 +570,14 @@ async def process_coordinates(message: Message, state: FSMContext) -> None:
                 "❌ Неверный формат координат. Пожалуйста, введите координаты в формате 'широта, долгота'."
             )
             return
-            
+
         latitude = float(coords[0])
         longitude = float(coords[1])
-        
+
         # Проверяем валидность координат
         if -90 <= latitude <= 90 and -180 <= longitude <= 180:
             await state.update_data(latitude=str(latitude), longitude=str(longitude))
-            
+
             await message.answer(
                 f"✅ Координаты приняты!\n"
                 f"📍 Широта: {latitude}\n"
@@ -575,17 +599,17 @@ async def process_coordinates(message: Message, state: FSMContext) -> None:
 async def create_address(message: Message, state: FSMContext) -> None:
     # Показываем, что идет обработка
     await message.answer("🔍 Ищу координаты по адресу...")
-    
+
     try:
         geolocator = Nominatim(user_agent="GoodRobotBot/1.0")
         location = geolocator.geocode(message.text, timeout=10)
-        
+
         if location:
             latitude = str(location.latitude)
             longitude = str(location.longitude)
-            
+
             await state.update_data(latitude=latitude, longitude=longitude)
-            
+
             await message.answer(
                 f"✅ Координаты найдены!\n"
                 f"📍 Широта: {latitude}\n"
@@ -613,25 +637,25 @@ async def process_description(message: Message, state: FSMContext) -> None:
             "❌ Описание слишком короткое. Пожалуйста, опишите вашу проблему или задачу подробнее."
         )
         return
-        
+
     # Сохраняем описание в состоянии
     await state.update_data(description=description, media=[])
-    
+
     # Получаем все данные заказа для подтверждения
     data = await state.get_data()
-    
+
     # Формируем текст для подтверждения
     confirmation_text = (
         "📋 Подтвердите данные заказа:\n\n"
         f"🔧 Категория: {data.get('category')}\n"
     )
-    
+
     if data.get('latitude') and data.get('longitude'):
         confirmation_text += f"📍 Координаты: {data.get('latitude')}, {data.get('longitude')}\n"
-    
+
     confirmation_text += f"📝 Описание: {description}\n\n"
     confirmation_text += "Всё верно?"
-    
+
     # Отправляем сообщение с подтверждением
     await message.answer(
         confirmation_text,
@@ -646,7 +670,7 @@ async def order_create_confirm_handler(callback: CallbackQuery, state: FSMContex
     tg_id = callback.from_user.id
     async with SessionFactory() as session:
         user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
-        
+
         # Создаем заказ в БД
         order = Order(
             client_id=user.id,
@@ -693,24 +717,182 @@ async def order_create_confirm_handler(callback: CallbackQuery, state: FSMContex
     await callback.answer()
 
 
+@router.message(F.text == "👤 Мой профиль")
+async def profile_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки 'Мой профиль' в главном меню клиента."""
+    tg_id = message.from_user.id
+    async with SessionFactory() as session:
+        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not user:
+            await message.answer("Вы не зарегистрированы. Используйте /start для начала работы.")
+            return
+
+        profile_text = (
+            f"👤 Ваш профиль:\n\n"
+            f"Имя: {user.name or 'Не указано'}\n"
+            f"Роль: {user.role or 'Не выбрана'}\n"
+            f"ID: {user.tg_id}\n"
+        )
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Изменить роль", callback_data="change_role")]
+        ])
+
+        await message.answer(profile_text, reply_markup=keyboard)
+
+
+@router.message(F.text == "💬 Сообщения")
+async def messages_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки 'Сообщения' в главном меню клиента."""
+    await message.answer("💬 Функция сообщений пока недоступна. Используйте встроенный чат Telegram для общения с мастерами.")
+
+
+@router.message(F.text == "⚙️ Настройки")
+async def settings_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки 'Настройки' в главном меню клиента."""
+    tg_id = message.from_user.id
+    async with SessionFactory() as session:
+        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not user:
+            await message.answer("Вы не зарегистрированы. Используйте /start для начала работы.")
+            return
+
+        settings_text = (
+            f"⚙️ Настройки:\n\n"
+            f"Имя: {user.name or 'Не указано'}\n"
+        )
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Изменить роль", callback_data="change_role")]
+        ])
+
+        await message.answer(settings_text, reply_markup=keyboard)
+
+
+@router.message(F.text == "📦 Мои заказы")
+async def my_orders_button(message: Message, state: FSMContext) -> None:
+    """Обработчик кнопки 'Мои заказы' в главном меню клиента."""
+    tg_id = message.from_user.id
+    async with SessionFactory() as session:
+        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        if not user:
+            await message.answer("Вы не зарегистрированы. Используйте /start для начала работы.")
+            return
+
+        # Получаем заказы клиента
+        orders_query = select(Order).where(
+            Order.client_id == user.id
+        ).order_by(Order.created_at.desc())
+
+        orders = (await session.execute(orders_query)).scalars().all()
+
+    if not orders:
+        await message.answer("У вас пока нет заказов.")
+        return
+
+    await message.answer("📦 Ваши заказы:")
+
+    # Группируем заказы по статусу
+    new_orders = [order for order in orders if order.status == "new"]
+    active_orders = [order for order in orders if order.status in ["assigned", "inprogress"]]
+    completed_orders = [order for order in orders if order.status == "done"]
+
+    # Показываем новые заказы (ожидающие ставок)
+    if new_orders:
+        await message.answer("🟡 Ожидание ставок:")
+        for order in new_orders[:5]:  # Ограничиваем до 5 заказов
+            # Проверяем, есть ли ставки на этот заказ
+            bids_count = (await session.execute(
+                select(func.count(Bid.id)).where(Bid.order_id == order.id)
+            )).scalar()
+            
+            order_text = (
+                f"📦 Заказ #{order.id}\n"
+                f"Категория: {order.category}\n"
+                f"Ставок: {bids_count}\n"
+                f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            )
+
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="Подробнее", callback_data=f"order:{order.id}")]
+            ])
+
+            await message.answer(order_text, reply_markup=keyboard)
+
+    # Показываем активные заказы
+    if active_orders:
+        await message.answer("🔵 Активные заказы:")
+        for order in active_orders[:5]:  # Ограничиваем до 5 заказов
+            # Получаем информацию о мастере
+            master = (await session.execute(select(User).where(User.id == order.master_id))).scalars().first()
+            master_name = master.name if master else "Мастер"
+            
+            order_text = (
+                f"📦 Заказ #{order.id} (В работе)\n"
+                f"Категория: {order.category}\n"
+                f"Мастер: {master_name}\n"
+                f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            )
+
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="Подробнее", callback_data=f"order:{order.id}")]
+            ])
+
+            await message.answer(order_text, reply_markup=keyboard)
+
+    # Показываем завершенные заказы
+    if completed_orders:
+        await message.answer("✅ Завершенные заказы:")
+        for order in completed_orders[:3]:  # Ограничиваем до 3 заказов
+            # Получаем информацию о мастере
+            master = (await session.execute(select(User).where(User.id == order.master_id))).scalars().first()
+            master_name = master.name if master else "Мастер"
+            
+            order_text = (
+                f"📦 Заказ #{order.id} (Завершен)\n"
+                f"Категория: {order.category}\n"
+                f"Мастер: {master_name}\n"
+                f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            )
+
+            await message.answer(order_text)
+
+
+@router.message(F.text == "❓ Помощь")
+async def help_button(message: Message) -> None:
+    """Обработчик кнопки помощи для клиентов."""
+    help_text = (
+        "📖 Помощь по использованию бота (режим клиента):\n\n"
+        "Команды:\n"
+        "/start - Начать работу с ботом\n"
+        "/menu - Открыть главное меню\n\n"
+        "Для создания заказа нажмите кнопку '➕ Новый заказ'.\n"
+        "Вы можете отслеживать свои заказы в разделе '📦 Мои заказы'.\n\n"
+        "Если у вас возникли вопросы, обратитесь в поддержку."
+        "- В разделе 'Мой профиль' вы можете посмотреть информацию о себе\n"
+        "- В разделе 'Настройки' можно изменить роль или другие параметры\n"
+    )
+    await message.answer(help_text)
+
+
 @router.callback_query(F.data == "confirm:no")
 async def order_create_cancel_handler(callback: CallbackQuery, state: FSMContext):
     """Обработчик отмены создания заказа"""
     # Получаем текущие данные заказа
     data = await state.get_data()
     category = data.get("category")
-    
+
     # Сообщаем пользователю об отмене
     await callback.message.edit_text(
         "❌ Создание заказа отменено. Вы можете начать заново или вернуться в главное меню."
     )
-    
+
     # Предлагаем пользователю вернуться к выбору категории
     await callback.message.answer(
         "Выберите категорию заявки или вернитесь в главное меню:",
         reply_markup=categories_keyboard(with_back=True)
     )
-    
+
     # Возвращаемся к состоянию выбора категории
     await state.set_state(OrderCreate.category)
     await callback.answer()

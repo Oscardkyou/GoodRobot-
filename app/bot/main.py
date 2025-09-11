@@ -8,6 +8,9 @@ from aiogram.types import BotCommand
 
 from app.bot import bot, dp
 from app.bot.handlers import client, master, partner
+from app.bot.handlers import tracking
+from app.bot.handlers import chat
+from app.bot.handlers import ai_assistant
 from app.bot.logging_setup import configure_logging
 from app.bot.middlewares.logging_middleware import LoggingMiddleware
 
@@ -16,6 +19,9 @@ def register_handlers() -> None:
     dp.include_router(client.router)
     dp.include_router(master.router)
     dp.include_router(partner.router)
+    dp.include_router(tracking.router)
+    dp.include_router(chat.router)
+    dp.include_router(ai_assistant.router)
 
 
 async def main() -> None:  # pragma: no cover

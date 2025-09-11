@@ -130,6 +130,13 @@
                         <label for="master-zones" class="form-label">Зоны обслуживания (через запятую)</label>
                         <input type="text" class="form-control" id="master-zones" placeholder="1,2,3">
                     </div>
+                    <div class="mb-3">
+                        <label for="master-specialties" class="form-label">Специальности</label>
+                        <select class="form-select" id="master-specialties" multiple>
+                            <!-- Специальности будут загружены динамически -->
+                        </select>
+                        <div class="form-text">Удерживайте Ctrl (или Command на Mac) для выбора нескольких специальностей</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -359,6 +366,37 @@
         }
     }
     
+    // Функция для загрузки специальностей
+    async function loadSpecialties() {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch('/specialties/api', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                const specialties = await response.json();
+                const selectElement = document.getElementById('master-specialties');
+                selectElement.innerHTML = '';
+                
+                for (const specialty of specialties) {
+                    if (specialty.is_active) {
+                        const option = document.createElement('option');
+                        option.value = specialty.id;
+                        option.textContent = specialty.name;
+                        selectElement.appendChild(option);
+                    }
+                }
+            } else {
+                console.error('Ошибка загрузки специальностей');
+            }
+        } catch (error) {
+            console.error('Ошибка:', error);
+        }
+    }
+
     // Функция для добавления нового мастера
     async function addMaster() {
         try {
@@ -369,6 +407,10 @@
             const phone = document.getElementById('master-phone').value;
             const password = document.getElementById('master-password').value;
             const zonesInput = document.getElementById('master-zones').value;
+            
+            // Получаем выбранные специальности
+            const specialtiesSelect = document.getElementById('master-specialties');
+            const selectedSpecialties = Array.from(specialtiesSelect.selectedOptions).map(option => parseInt(option.value));
             
             // Преобразуем строку с зонами в массив чисел
             const zones = zonesInput ? zonesInput.split(',').map(zone => parseInt(zone.trim())) : [];
@@ -393,7 +435,8 @@
                     password: password,
                     zones: zones,
                     role: 'master',
-                    is_active: true
+                    is_active: true,
+                    specialty_ids: selectedSpecialties
                 })
             });
             
@@ -462,12 +505,37 @@
         
         // Обработчик кнопки добавления мастера
         document.getElementById('add-master-btn').addEventListener('click', function() {
+            // Загружаем список специальностей перед открытием модального окна
+            loadSpecialties();
             const modal = new bootstrap.Modal(document.getElementById('addMasterModal'));
             modal.show();
         });
         
         // Обработчик кнопки сохранения мастера
         document.getElementById('save-master').addEventListener('click', addMaster);
+        
+        // Форматирование телефона при вводе
+        document.getElementById('master-phone').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+
+            if (value.startsWith('7')) {
+                value = value.substring(1);
+            }
+
+            if (value.length > 0) {
+                if (value.length <= 3) {
+                    value = `+7 (${value}`;
+                } else if (value.length <= 6) {
+                    value = `+7 (${value.slice(0, 3)}) ${value.slice(3)}`;
+                } else if (value.length <= 8) {
+                    value = `+7 (${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6)}`;
+                } else {
+                    value = `+7 (${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6, 8)}-${value.slice(8, 10)}`;
+                }
+            }
+
+            e.target.value = value;
+        });
     });
 </script>
 {% endblock %}

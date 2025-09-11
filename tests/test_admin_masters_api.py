@@ -8,19 +8,18 @@ This test covers:
 """
 from __future__ import annotations
 
-import asyncio
 import random
 import string
-from typing import Any, Dict
+from typing import Any
 
-import pytest
 import httpx
+import pytest
+from sqlalchemy import select
 
 from admin.app import create_app
-from core.db import SessionFactory
 from admin.app.auth import get_password_hash
-from sqlalchemy import select
 from app.models.user import User
+from core.db import SessionFactory
 
 
 def _rand_suffix(n: int = 6) -> str:
@@ -61,7 +60,7 @@ async def test_create_and_delete_master():
         # Create master
         master_username = f"master_{_rand_suffix()}"
         phone_rand = f"+77{random.randint(100000000, 999999999)}"
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "username": master_username,
             "full_name": "Test Master",
             "phone": phone_rand,

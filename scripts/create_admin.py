@@ -1,15 +1,22 @@
 import asyncio
 import os
-import sys
 import random
+import sys
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
 # Добавляем корневую директорию проекта в sys.path
-sys.path.append('/app')
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.db import SessionFactory
-from app.models.user import User
 from admin.app.auth import get_password_hash
+from app.models.user import User
+
+# Создаем локальное подключение к базе данных
+DATABASE_URL = "postgresql+asyncpg://masterbot:masterbot@localhost:5432/masterbot"
+engine = create_async_engine(DATABASE_URL)
+SessionFactory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 async def create_admin_user(username, password, email=None, name=None):
@@ -52,7 +59,7 @@ async def main():
 
     success = await create_admin_user(username, password)
     if success:
-        print(f"Используйте следующие данные для входа:")
+        print("Используйте следующие данные для входа:")
         print(f"Логин: {username}")
         print(f"Пароль: {password}")
 
