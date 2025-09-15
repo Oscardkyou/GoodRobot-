@@ -60,9 +60,9 @@ def upgrade() -> None:
                existing_type=postgresql.TIMESTAMP(),
                nullable=False,
                existing_server_default=sa.text('now()'))
-    op.drop_index('ix_master_categories_category', table_name='master_categories')
-    op.drop_index('ix_master_categories_user_category', table_name='master_categories')
-    op.drop_index('ix_master_categories_user_id', table_name='master_categories')
+    op.drop_index('ix_master_categories_category', table_name='master_categories', if_exists=True)
+    op.drop_index('ix_master_categories_user_category', table_name='master_categories', if_exists=True)
+    op.drop_index('ix_master_categories_user_id', table_name='master_categories', if_exists=True)
     op.alter_column('orders', 'created_at',
                existing_type=postgresql.TIMESTAMP(),
                nullable=False,
@@ -86,10 +86,10 @@ def upgrade() -> None:
                existing_type=sa.BOOLEAN(),
                nullable=False,
                existing_server_default=sa.text('true'))
-    op.drop_index('ix_users_is_active', table_name='users')
-    op.drop_index('ix_users_phone', table_name='users')
-    op.drop_index('ix_users_role', table_name='users')
-    op.drop_index('ix_users_role_is_active', table_name='users')
+    op.drop_index('ix_users_is_active', table_name='users', if_exists=True)
+    op.drop_index('ix_users_phone', table_name='users', if_exists=True)
+    op.drop_index('ix_users_role', table_name='users', if_exists=True)
+    op.drop_index('ix_users_role_is_active', table_name='users', if_exists=True)
     # ### end Alembic commands ###
 
 
