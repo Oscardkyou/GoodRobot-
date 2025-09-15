@@ -8,17 +8,17 @@ echo "🔧 Начинаем исправление проблем с ENUM тип
 
 # Удаляем таблицы, зависящие от проблемных типов
 echo "🗑️ Удаляем таблицы, зависящие от проблемных типов..."
-docker compose exec postgres psql -U postgres -d masterbot -c "DROP TABLE IF EXISTS chat_sessions CASCADE;"
-docker compose exec postgres psql -U postgres -d masterbot -c "DROP TABLE IF EXISTS chat_messages CASCADE;"
+docker compose exec postgres psql -U masterbot -d masterbot -c "DROP TABLE IF EXISTS chat_sessions CASCADE;"
+docker compose exec postgres psql -U masterbot -d masterbot -c "DROP TABLE IF EXISTS chat_messages CASCADE;"
 
 # Удаляем проблемные ENUM типы
 echo "🗑️ Удаляем проблемные ENUM типы..."
-docker compose exec postgres psql -U postgres -d masterbot -c "DROP TYPE IF EXISTS chat_session_status_enum CASCADE;"
-docker compose exec postgres psql -U postgres -d masterbot -c "DROP TYPE IF EXISTS chat_message_type_enum CASCADE;"
+docker compose exec postgres psql -U masterbot -d masterbot -c "DROP TYPE IF EXISTS chat_session_status_enum CASCADE;"
+docker compose exec postgres psql -U masterbot -d masterbot -c "DROP TYPE IF EXISTS chat_message_type_enum CASCADE;"
 
 # Сбрасываем статус миграций
 echo "🔄 Сбрасываем статус миграций..."
-docker compose exec postgres psql -U postgres -d masterbot -c "DELETE FROM alembic_version WHERE version_num = 'd90c3fb44c85';"
+docker compose exec postgres psql -U masterbot -d masterbot -c "DELETE FROM alembic_version WHERE version_num = 'd90c3fb44c85';"
 
 echo "✅ Исправление завершено. Теперь перезапустите проект командой:"
 echo "docker compose down && docker compose up -d"
