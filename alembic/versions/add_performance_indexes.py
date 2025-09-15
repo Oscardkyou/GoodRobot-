@@ -12,9 +12,9 @@ from alembic.context import get_context
 
 # revision identifiers, used by Alembic.
 revision = 'add_performance_indexes'
-down_revision = None  # Укажите предыдущую ревизию
+down_revision = None  # Root branch; merged later by 10cad352dcf7
 branch_labels = None
-depends_on = None
+depends_on = '5e736ec389db'  # Ensure specialties and master_specialties exist before creating their indexes
 
 # Отключаем транзакционное выполнение для этой миграции
 is_transactional = False
