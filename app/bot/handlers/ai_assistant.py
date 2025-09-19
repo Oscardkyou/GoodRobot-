@@ -1,11 +1,11 @@
-"""AI Assistant handler for GoodRobot bot."""
+"""AI Assistant handler for GoodRobot bot (local LLM)."""
 import logging
 from asyncio import get_running_loop
 
 from aiogram import F, Router
 from aiogram.types import Message
 
-# Импортируем нашу реализацию ИИ
+# Импортируем локальную реализацию ИИ (DistilGPT-2 через Transformers)
 from app.ai_agent.simple_ai import get_ai_response
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ async def start_command(message: Message) -> None:
 
 @router.message(F.text)
 async def ai_assistant_query(message: Message) -> None:
-    """Обработчик с приоритетом Gemini"""
+    """Обработчик запроса к локальной модели (DistilGPT-2)."""
     if message.from_user.id not in ai_users:
         return
 
@@ -60,7 +60,7 @@ async def ai_assistant_query(message: Message) -> None:
             None,
             get_ai_response,
             message.text,
-            True  # use_gemini=True
+            True  # параметр сохраняем для совместимости; внутри игнорируется
         )
         await message.answer(response)
     except Exception as e:

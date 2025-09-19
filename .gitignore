@@ -154,6 +154,7 @@ cython_debug/
 
 # Database
 *.sqlite
+*.sqlite3
 *.db
 
 # Logs
@@ -215,3 +216,7 @@ dump.rdb
 
 # Ignore uv specific files
 .uv/
+# mutation testing artifacts
+mutants/
+mutation_tests/
+tests/mutation_suite.py

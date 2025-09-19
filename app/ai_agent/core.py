@@ -14,7 +14,7 @@ class AIAgent:
 
     def __init__(self):
         """Initialize the AI Agent with all necessary components."""
-        from app.ai_agent.simple_ai import GeminiAI
+        from app.ai_agent.simple_ai import GeminiAI  # local CPU LLM wrapper (DistilGPT-2)
         self.gemini = GeminiAI()
         self.text_classifier = TextClassifier()
         self.text_generator = TextGenerator()
@@ -22,6 +22,7 @@ class AIAgent:
         self.query_classifier = QueryClassifier(self.text_classifier)
 
     async def initialize(self):
+        # Initialize local LLM pipeline lazily
         self.gemini.initialize()
 
     async def process_order_description(self, description: str) -> Dict[str, Any]:
@@ -46,7 +47,7 @@ class AIAgent:
             }
 
     async def process_query(self, query: str) -> str:
-        """Обработка запроса с приоритетом Gemini"""
+        """Обработка запроса с приоритетом локальной модели (DistilGPT-2)"""
         gemini_res = self.gemini.get_response(query)
         if gemini_res:
             return gemini_res

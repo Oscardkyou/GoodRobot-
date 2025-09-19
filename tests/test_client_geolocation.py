@@ -9,6 +9,9 @@ from app.bot.handlers.client import (
     create_location,
     handle_location_button_text,
     skip_location,
+    location_keyboard,
+    inline_location_keyboard,
+    location_request_keyboard,
 )
 from app.bot.states import OrderCreate
 
@@ -76,7 +79,8 @@ async def test_create_location_handler_with_location(message, state):
     message.location = location_mock
 
     # Мокаем клавиатуру
-    with patch('app.bot.keyboards.media_keyboard', return_value=MagicMock()):
+    kb = MagicMock()
+    with patch('app.bot.keyboards.media_keyboard', return_value=kb):
         await create_location(message, state)
 
     # Проверяем, что координаты были сохранены в состоянии
@@ -89,6 +93,7 @@ async def test_create_location_handler_with_location(message, state):
     message.answer.assert_called()
     args, kwargs = message.answer.call_args
     assert "Геолокация получена" in args[0]
+    assert kwargs.get('reply_markup') is kb
 
     # Проверяем, что состояние было изменено на OrderCreate.media
     state.set_state.assert_called_once_with(OrderCreate.media)
@@ -100,13 +105,18 @@ async def test_create_location_handler_without_location(message, state):
     message.location = None
 
     # Мокаем клавиатуру
-    with patch('app.bot.keyboards.media_keyboard', return_value=MagicMock()):
+    kb = MagicMock()
+    with patch('app.bot.keyboards.media_keyboard', return_value=kb):
         await create_location(message, state)
+
+    # Проверяем, что не записали координаты
+    state.update_data.assert_not_called()
 
     # Проверяем, что было отправлено сообщение о невозможности получить геолокацию
     message.answer.assert_called()
     args, kwargs = message.answer.call_args
     assert "Не удалось получить геолокацию" in args[0]
+    assert kwargs.get('reply_markup') is kb
 
     # Проверяем, что состояние было изменено на OrderCreate.media
     state.set_state.assert_called_once_with(OrderCreate.media)

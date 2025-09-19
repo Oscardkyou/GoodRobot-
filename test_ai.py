@@ -1,4 +1,8 @@
-"""Тестовый скрипт для проверки работы Gemini API."""
+"""Тестовый скрипт для проверки локальной модели DistilGPT-2.
+
+Скрипт печатает краткие ответы без запуска pytest. Для автоматических тестов
+используйте tests/test_ai_local.py
+"""
 import sys
 import os
 
@@ -9,15 +13,15 @@ try:
     from app.ai_agent.simple_ai import GeminiAI, get_ai_response
     print("✅ Модуль simple_ai успешно импортирован")
     
-    # Создаем экземпляр GeminiAI
-    gemini = GeminiAI()
-    gemini.initialize()
-    print("✅ Gemini API инициализирован")
+    # Создаем экземпляр локальной модели (обёртка GeminiAI)
+    ai = GeminiAI()
+    ai.initialize()
+    print("✅ Локальная модель инициализирована")
     
-    # Тестируем прямой запрос через GeminiAI
+    # Тестируем прямой запрос
     test_prompt = "Привет, расскажи о себе в двух предложениях"
-    direct_response = gemini.get_response(test_prompt)
-    print("✅ Прямой ответ от Gemini получен")
+    direct_response = ai.get_response(test_prompt)
+    print("✅ Прямой ответ получен")
     print(f"Прямой ответ: {direct_response}")
     
     # Тестируем через функцию get_ai_response

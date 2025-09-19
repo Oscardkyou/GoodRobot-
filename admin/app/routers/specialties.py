@@ -37,14 +37,17 @@ async def get_specialties_page(
         {"request": request, "specialties": specialties}
     )
 
-@router.get("/{specialty_id}", response_class=HTMLResponse)
+@router.get("/view/{specialty_id}", response_class=HTMLResponse)
 async def get_specialty_detail(
     specialty_id: int,
     request: Request,
     db: AsyncSession = Depends(get_session),
     current_admin=Depends(get_current_admin)
 ):
-    """Отображает детальную страницу специальности."""
+    """Отображает детальную страницу специальности.
+
+    Путь изменён на /view/{specialty_id}, чтобы избежать конфликта со статическим /api.
+    """
     # Получаем специальность
     query = select(Specialty).filter(Specialty.id == specialty_id)
     result = await db.execute(query)
@@ -144,7 +147,10 @@ async def delete_specialty(
     db: AsyncSession = Depends(get_session),
     current_admin=Depends(get_current_admin)
 ):
-    """Удаляет специальность."""
+    """Удаляет специальность.
+
+    Перед удалением чистим связи в таблице master_specialties, чтобы избежать FK-ошибок.
+    """
     query = select(Specialty).filter(Specialty.id == specialty_id)
     result = await db.execute(query)
     specialty = result.scalar_one_or_none()
@@ -152,6 +158,9 @@ async def delete_specialty(
     if not specialty:
         raise HTTPException(status_code=404, detail="Специальность не найдена")
 
+    # Сначала удаляем связи мастер↔специальности
+    await db.execute(delete(master_specialties).where(master_specialties.c.specialty_id == specialty_id))
+    # Затем удаляем саму специальность
     await db.execute(delete(Specialty).filter(Specialty.id == specialty_id))
     await db.commit()
 

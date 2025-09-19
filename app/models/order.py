@@ -9,6 +9,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    JSON,
     func,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -40,7 +41,10 @@ class Order(Base):
     location_updated_at: Mapped[DateTime | None] = mapped_column(DateTime, nullable=True)  # Время последнего обновления геолокации
     when_at: Mapped[DateTime | None] = mapped_column(DateTime)
     description: Mapped[str | None] = mapped_column(Text)
-    media: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    # В Postgres используем ARRAY(String), в SQLite подменяем на JSON
+    media: Mapped[list[str] | None] = mapped_column(
+        ARRAY(String).with_variant(JSON(), "sqlite")
+    )
     status: Mapped[str] = mapped_column(
         Enum(
             "new", "assigned", "done", "cancelled", name="order_status_enum"

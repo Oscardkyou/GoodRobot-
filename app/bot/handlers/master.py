@@ -1128,10 +1128,54 @@ async def submit_bid_price(message: Message, state: FSMContext) -> None:
                 existing.price = price
                 await session.commit()
                 await message.answer("Ваша ставка обновлена!")
+                
+                # Уведомляем клиента об обновлении ставки
+                try:
+                    # Получаем заказ и клиента
+                    order = (await session.execute(select(Order).where(Order.id == order_id))).scalars().first()
+                    client = (await session.execute(select(User).where(User.id == order.client_id))).scalars().first()
+                    
+                    if client and client.tg_id:
+                        kb = InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text="Посмотреть предложения", callback_data=f"order_bids:{order.id}")]
+                        ])
+                        await message.bot.send_message(
+                            chat_id=client.tg_id,
+                            text=f"💰 Ставка обновлена по вашему заказу #{order.id}: {price} KZT от мастера {master.name or 'Мастер'}",
+                            reply_markup=kb
+                        )
+                except Exception as e:
+                    logger.error("Failed to notify client about bid update", extra={
+                        "order_id": order_id, 
+                        "client_id": order.client_id if order else None,
+                        "error": str(e)
+                    })
             else:
                 bid = Bid(order_id=order_id, master_id=master.id, price=price)
                 session.add(bid)
                 await session.commit()
                 await message.answer("Ставка отправлена! Ожидайте ответа клиента.")
+                
+                # Уведомляем клиента о новой ставке
+                try:
+                    # Получаем заказ и клиента
+                    order = (await session.execute(select(Order).where(Order.id == order_id))).scalars().first()
+                    client = (await session.execute(select(User).where(User.id == order.client_id))).scalars().first()
+                    
+                    if client and client.tg_id:
+                        kb = InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text="Посмотреть предложения", callback_data=f"order_bids:{order.id}")]
+                        ])
+                        await message.bot.send_message(
+                            chat_id=client.tg_id,
+                            text=f"💰 Новая ставка по вашему заказу #{order.id}: {price} KZT от мастера {master.name or 'Мастер'}",
+                            reply_markup=kb
+                        )
+                except Exception as e:
+                    logger.error("Failed to notify client about new bid", extra={
+                        "order_id": order_id, 
+                        "client_id": order.client_id if order else None,
+                        "error": str(e)
+                    })
 
     await state.clear()

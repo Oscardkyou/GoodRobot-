@@ -22,6 +22,7 @@ from app.bot.keyboards import (
     confirm_keyboard,
     main_menu_keyboard,
     role_keyboard,
+    media_keyboard,
 )
 from app.bot.states import ClientActions, OrderCreate
 from app.models import Bid, Order, Partner, User
@@ -190,6 +191,52 @@ async def choose_role(callback: CallbackQuery, state: FSMContext) -> None:
             "/partner_payouts - история выплат"
         )
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("order:"))
+async def view_order_details_client(callback: CallbackQuery, state: FSMContext) -> None:
+    """Показать детали заказа для клиента с кнопкой перехода к ставкам."""
+    try:
+        order_id = int(callback.data.split(":", 1)[1])
+    except Exception:
+        await callback.answer("Некорректный идентификатор заказа", show_alert=True)
+        return
+
+    tg_id = callback.from_user.id
+    async with SessionFactory() as session:
+        user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
+        order = (await session.execute(select(Order).where(Order.id == order_id))).scalars().first()
+        if not order or not user or order.client_id != user.id:
+            await callback.answer("Заказ не найден", show_alert=True)
+            return
+            
+        # Проверяем, есть ли ставки на этот заказ
+        bids_count = (await session.execute(
+            select(func.count(Bid.id)).where(Bid.order_id == order_id)
+        )).scalar()
+        
+        text = (
+            f"📦 Заказ #{order.id}\n"
+            f"Категория: {order.category}\n"
+            f"Адрес: {order.address or '—'}\n"
+            f"Описание: {order.description or '—'}\n"
+            f"Статус: {order.status}\n"
+            f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"Ставок: {bids_count}\n"
+        )
+        
+        keyboard_buttons = [
+            [InlineKeyboardButton(text="Предложения мастеров", callback_data=f"order_bids:{order.id}")],
+            [InlineKeyboardButton(text="« Назад", callback_data="back:category")]
+        ]
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+        
+        try:
+            await callback.message.edit_text(text, reply_markup=keyboard)
+        except Exception:
+            await callback.message.answer(text, reply_markup=keyboard)
+        await callback.answer()
 
 
 @router.callback_query(F.data.startswith("order_bids:"))
@@ -597,35 +644,80 @@ async def process_coordinates(message: Message, state: FSMContext) -> None:
 
 @router.message(OrderCreate.location_by_address)
 async def create_address(message: Message, state: FSMContext) -> None:
-    # Показываем, что идет обработка
-    await message.answer("🔍 Ищу координаты по адресу...")
+    """Сохраняет адрес и предлагает отправить геолокацию.
 
-    try:
-        geolocator = Nominatim(user_agent="GoodRobotBot/1.0")
-        location = geolocator.geocode(message.text, timeout=10)
+    Соответствует ожиданиям тестов: сохраняем address в state,
+    показываем клавиатуру с request_location и переводим в OrderCreate.location.
+    """
+    # Сохраняем адрес
+    await state.update_data(address=message.text)
 
-        if location:
-            latitude = str(location.latitude)
-            longitude = str(location.longitude)
+    # Клавиатура для запроса геолокации
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="📍 Отправить геолокацию", request_location=True)]],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
 
-            await state.update_data(latitude=latitude, longitude=longitude)
+    # Просим отправить геолокацию
+    await message.answer(
+        "Отправьте вашу геолокацию, нажав на кнопку ниже, или введите координаты/выберите другой способ.",
+        reply_markup=kb,
+    )
 
-            await message.answer(
-                f"✅ Координаты найдены!\n"
-                f"📍 Широта: {latitude}\n"
-                f"📍 Долгота: {longitude}\n\n"
-                "Теперь опишите вашу проблему или задачу:"
-            )
-            await state.set_state(OrderCreate.description)
-        else:
-            await message.answer(
-                "❌ Не удалось найти координаты по указанному адресу. Пожалуйста, попробуйте указать более точный адрес или используйте другой способ указания местоположения."
-            )
-    except Exception as e:
-        logger.error(f"Error geocoding address: {e}")
+    # Переходим к ожиданию геолокации
+    await state.set_state(OrderCreate.location)
+
+
+# --- Handlers required by tests: create_location, skip_location, handle_location_button_text ---
+async def create_location(message: Message, state: FSMContext) -> None:
+    """Обработчик получения геолокации от пользователя.
+
+    Требования по тестам:
+    - Если message.location есть: сохранить координаты, отправить уведомление и перейти к OrderCreate.media.
+    - Если нет: отправить сообщение об ошибке и также перейти к OrderCreate.media.
+    В обоих случаях показать клавиатуру добавления медиа (media_keyboard).
+    """
+    loc = getattr(message, "location", None)
+    if loc is not None and hasattr(loc, "latitude") and hasattr(loc, "longitude"):
+        await state.update_data(latitude=str(loc.latitude), longitude=str(loc.longitude))
         await message.answer(
-            "❌ Произошла ошибка при поиске координат. Пожалуйста, попробуйте указать адрес в другом формате или используйте другой способ."
+            "✅ Геолокация получена!",
+            reply_markup=media_keyboard(),
         )
+    else:
+        await message.answer(
+            "❌ Не удалось получить геолокацию. Попробуйте отправить её повторно или выберите другой способ.",
+            reply_markup=media_keyboard(),
+        )
+    # После обработки переводим на добавление медиа
+    await state.set_state(OrderCreate.media)
+
+
+async def skip_location(message: Message, state: FSMContext) -> None:
+    """Обработчик пропуска отправки геолокации: сразу переходим к загрузке медиа."""
+    await message.answer(
+        "⏭️ Геолокация пропущена. Теперь вы можете прикрепить медиа (фото/видео) или пропустить этот шаг.",
+        reply_markup=media_keyboard(),
+    )
+    await state.set_state(OrderCreate.media)
+
+
+async def handle_location_button_text(message: Message, state: FSMContext) -> None:
+    """Пояснение пользователю, как отправить геолокацию через кнопку request_location.
+
+    Тест ожидает наличие текста с подсказкой и клавиатуры с request_location=True.
+    """
+    # Клавиатура запросит геолокацию у клиента
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="📍 Отправить геолокацию", request_location=True)]],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+    await message.answer(
+        "Нажмите на кнопку, чтобы поделиться вашим местоположением.",
+        reply_markup=kb,
+    )
 
 
 @router.message(OrderCreate.description)

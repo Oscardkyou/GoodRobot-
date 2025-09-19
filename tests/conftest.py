@@ -1,15 +1,21 @@
 import asyncio
+import os
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.models.base import Base
+# Важно: импортируем все модели, чтобы они попали в Base.metadata
+import app.models  # noqa: F401
 
-# Создаем тестовую in-memory SQLite базу данных
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# URL тестовой БД. По умолчанию SQLite файл в корне проекта, можно переопределить через ENV.
+# Для PostgreSQL используйте: postgresql+asyncpg://masterbot:masterbot@localhost:5432/masterbot
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test_db.sqlite3")
 
 
 @pytest.fixture(scope="session")
@@ -20,7 +26,7 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def test_engine():
     """Создает тестовый движок базы данных"""
     engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
@@ -47,6 +53,23 @@ async def test_session(test_engine):
 
     async with async_session() as session:
         yield session
+
+
+@pytest.fixture
+def test_db_session(test_engine):
+    """Возвращает асинхронный контекстный менеджер для получения сессии.
+    Нужен для тестов, которые ожидают фабрику вида: `async with test_db_session() as session:`
+    """
+    async_session = sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    @asynccontextmanager
+    async def _session_cm():
+        async with async_session() as session:
+            yield session
+
+    return _session_cm
 
 
 @pytest.fixture
