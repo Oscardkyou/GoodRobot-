@@ -27,6 +27,10 @@ from app.bot.keyboards import (
 from app.bot.states import ClientActions, OrderCreate
 from app.models import Bid, Order, Partner, User
 from core.db import SessionFactory
+from app.services.assignments import (
+    AssignmentError,
+    select_bid as service_select_bid,
+)
 
 logger = logging.getLogger("bot.client")
 
@@ -988,3 +992,59 @@ async def order_create_cancel_handler(callback: CallbackQuery, state: FSMContext
     # Возвращаемся к состоянию выбора категории
     await state.set_state(OrderCreate.category)
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("select_bid:"))
+async def select_bid_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    """Клиент выбирает ставку мастера.
+
+    Меняем статус заказа на "assigned", сохраняем выбранного мастера,
+    помечаем выбранную ставку как "selected", остальные как "rejected".
+    """
+    try:
+        bid_id = int(callback.data.split(":", 1)[1])
+    except Exception:
+        await callback.answer("Некорректный идентификатор ставки", show_alert=True)
+        return
+
+    tg_id = callback.from_user.id
+    async with SessionFactory() as session:
+        try:
+            order = await service_select_bid(session, bid_id=bid_id, client_tg_id=tg_id)
+        except AssignmentError as e:
+            await callback.answer(str(e), show_alert=True)
+            return
+        except Exception:
+            await callback.answer("Ошибка при выборе мастера", show_alert=True)
+            return
+
+        # Уведомим выбранного мастера, если есть tg_id
+        master = (await session.execute(select(User).where(User.id == order.master_id))).scalars().first()
+        if master and master.tg_id:
+            try:
+                await callback.message.bot.send_message(
+                    chat_id=master.tg_id,
+                    text=(
+                        "✅ Вас выбрали для выполнения заказа!\n"
+                        f"Заказ #{order.id} — статус: {order.status}"
+                    ),
+                )
+            except Exception:
+                pass
+
+        # Обновим сообщение для клиента
+        text = (
+            f"📦 Заказ #{order.id} — мастер назначен\n"
+            f"Статус: {order.status}\n"
+            f"Мастер: {master.name if master else '—'}"
+        )
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="« Назад", callback_data="back:category")]
+            ]
+        )
+        try:
+            await callback.message.edit_text(text, reply_markup=keyboard)
+        except Exception:
+            await callback.message.answer(text, reply_markup=keyboard)
+        await callback.answer("Мастер выбран")
