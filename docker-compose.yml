@@ -36,7 +36,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.admin
-    command: sh -c "python scripts/wait_for_db.py && sh scripts/entrypoint_admin.sh"
+    command: sh -c "python scripts/wait_for_db.py && python scripts/ensure_superadmin.py && sh scripts/entrypoint_admin.sh"
     depends_on:
       postgres:
         condition: service_healthy

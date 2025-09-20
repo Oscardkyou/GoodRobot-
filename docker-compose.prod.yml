@@ -36,7 +36,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: goodrobot-admin
-    command: ["bash", "-lc", "scripts/entrypoint_admin.sh"]
+    command: ["bash", "-lc", "python scripts/wait_for_db.py && python scripts/ensure_superadmin.py && scripts/entrypoint_admin.sh"]
     env_file:
       - .env
     environment:
