@@ -20,7 +20,8 @@ class GeminiAI:
 
     def __init__(self, model_name: str | None = None, max_new_tokens: int | None = None):
         # Allow configuring via env
-        self.model_name = model_name or os.getenv("AI_MODEL_NAME", "google/flan-t5-base")
+        # По умолчанию используем русскоязычную инструкционную модель
+        self.model_name = model_name or os.getenv("AI_MODEL_NAME", "cointegrated/rut5-base-multitask")
         # flan-t5-small is ~80MB weights; flan-t5-base ~250MB; choose per server resources
         self.max_new_tokens = int(os.getenv("AI_MAX_NEW_TOKENS", str(max_new_tokens or 120)))
         self._pipe = None  # lazy-initialized text2text-generation pipeline
@@ -138,11 +139,11 @@ def get_ai_response(user_input: str, use_gemini: bool = True) -> str:
             )
 
         prompt = (
-            "Ты — понятный и вежливый ассистент сервиса GoodRobot по поиску мастеров. "
-            "Отвечай коротко (1–3 предложения), по делу, без воды. Если спрашивают про сервис, "
-            "объясни как создать заявку, как выбрать мастера и как происходит оплата.\n\n"
-            f"Вопрос пользователя: {user_input}\n"
-            "Ответ:"
+            "Инструкция: Ты — ассистент русскоязычного сервиса GoodRobot по поиску мастеров. "
+            "Отвечай кратко (1–3 предложения), по делу и без лишней воды. Если вопрос общий, кратко объясни: "
+            "как создать заявку, как выбрать мастера, как проходит оплата. Избегай повторов и бессмысленных фраз.\n\n"
+            f"Вопрос: {user_input}\n"
+            "Краткий ответ:"
         )
 
         generated_text = gemini.get_response(prompt)
