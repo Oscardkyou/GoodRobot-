@@ -31,6 +31,10 @@ class Settings(BaseSettings):
 
     # Partner onboarding (superadmin invite)
     partner_invite_code: str | None = Field(None, alias="PARTNER_INVITE_CODE")
+    # Partner settings
+    partner_default_payout_percent: int = Field(5, alias="PARTNER_DEFAULT_PAYOUT_PERCENT")
+    # Security / roles
+    superadmin_usernames: str = Field("", alias="SUPERADMIN_USERNAMES")
 
     # Admin settings
     @property

@@ -10,6 +10,7 @@ from .payouts import router as payouts_router
 from .specialists import router as specialists_router
 from .specialties import router as specialties_router
 from .users import router as users_router
+from .partners import router as partners_router
 
 # Создаем корневой роутер
 api_router = APIRouter()
@@ -25,3 +26,4 @@ api_router.include_router(admins_router, prefix="/admins", tags=["admins"])
 api_router.include_router(specialties_router, prefix="/specialties", tags=["specialties"])
 api_router.include_router(specialists_router, prefix="/specialists", tags=["specialists"])
 api_router.include_router(client_actions_router, prefix="/client-actions", tags=["client_actions"])
+api_router.include_router(partners_router, prefix="/partners", tags=["partners"])

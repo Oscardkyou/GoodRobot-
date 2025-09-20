@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block title %}Партнёры — GoodRobot Админ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+  <h1 class="h2">Партнёры</h1>
+  <div>
+    <button id="refresh-btn" class="btn btn-outline-secondary btn-sm me-2"><i class="bi bi-arrow-clockwise"></i> Обновить</button>
+    <button id="add-partner-btn" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Добавить/обновить</button>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <label class="form-label">Поиск (телефон / имя / tg_id)</label>
+    <div class="input-group">
+      <input type="text" id="search-input" class="form-control" placeholder="Например: +7 (777) 123-45-67 или 123456789">
+      <button class="btn btn-outline-primary" id="search-btn"><i class="bi bi-search"></i></button>
+      <button class="btn btn-outline-secondary" id="reset-btn">Сброс</button>
+    </div>
+  </div>
+</div>
+
+<div class="table-responsive">
+  <table class="table table-striped table-sm">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>User ID</th>
+        <th>TG ID</th>
+        <th>Телефон</th>
+        <th>Имя</th>
+        <th>%</th>
+        <th>Код</th>
+        <th>Slug</th>
+        <th class="text-end">Действия</th>
+      </tr>
+    </thead>
+    <tbody id="partners-tbody">
+      <tr><td colspan="9">Загрузка...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<nav>
+  <ul class="pagination" id="pagination"></ul>
+</nav>
+
+<!-- Modal: Create/Update Partner -->
+<div class="modal fade" id="partnerModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Добавить/обновить партнёра</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Telegram ID</label>
+          <input type="number" class="form-control" id="form-tg-id" placeholder="Например: 468327451">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Телефон</label>
+          <input type="text" class="form-control" id="form-phone" placeholder="+7 (XXX) XXX-XX-XX">
+        </div>
+        {% if is_superadmin %}
+        <div class="mb-2">
+          <label class="form-label">Процент (%)</label>
+          <input type="number" class="form-control" id="form-payout-percent" min="0" max="100" placeholder="5">
+        </div>
+        {% else %}
+        <div class="mb-2">
+          <label class="form-label">Процент (%)</label>
+          <input type="number" class="form-control" id="form-payout-percent" disabled placeholder="Доступно только суперадмину">
+          <div class="form-text">Изменять процент партнёра может только суперадмин</div>
+        </div>
+        {% endif %}
+        <div class="mb-2">
+          <label class="form-label">Referral code</label>
+          <input type="text" class="form-control" id="form-ref-code" placeholder="REF00000000">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Slug</label>
+          <input type="text" class="form-control" id="form-slug" placeholder="partner_468327451">
+        </div>
+        <div class="text-muted small">Достаточно tg_id или телефона. Остальные поля — опционально.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-primary" id="save-partner-btn">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Confirm Delete -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Подтверждение</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="confirmModalBody">Удалить партнёра?</div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Удалить</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let currentPage = 1;
+  const pageSize = 20;
+  let deleteTargetId = null;
+
+  async function loadPartners(page = 1, search = '') {
+    currentPage = page;
+    const skip = (page - 1) * pageSize;
+    const url = new URL(window.location.origin + `/partners/api`);
+    url.searchParams.set('skip', skip);
+    url.searchParams.set('limit', pageSize);
+    if (search) url.searchParams.set('search', search);
+    const resp = await authFetch(url.toString());
+    const tbody = document.getElementById('partners-tbody');
+    if (!resp.ok) {
+      tbody.innerHTML = `<tr><td colspan="9">Ошибка загрузки (${resp.status})</td></tr>`;
+      return;
+    }
+    const data = await resp.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9">Пусто</td></tr>`;
+      document.getElementById('pagination').innerHTML = '';
+      return;
+    }
+    tbody.innerHTML = '';
+    for (const p of data) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${p.id}</td>
+        <td>${p.user_id}</td>
+        <td>${p.tg_id ?? ''}</td>
+        <td>${p.phone ?? ''}</td>
+        <td>${p.name ?? ''}</td>
+        <td>${p.payout_percent}</td>
+        <td>${p.referral_code ?? ''}</td>
+        <td>${p.slug ?? ''}</td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-outline-primary me-1" onclick="openEdit(${p.id})"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" onclick="openDelete(${p.id})"><i class="bi bi-trash"></i></button>
+        </td>`;
+      tbody.appendChild(tr);
+    }
+    // Простая пагинация: показываем только текущую страницу и +/- 1
+    const pag = document.getElementById('pagination');
+    pag.innerHTML = '';
+    const prev = document.createElement('li');
+    prev.className = 'page-item' + (currentPage <= 1 ? ' disabled' : '');
+    prev.innerHTML = `<a class="page-link" href="#">Назад</a>`;
+    prev.onclick = (e) => { e.preventDefault(); if (currentPage > 1) loadPartners(currentPage - 1, document.getElementById('search-input').value); };
+    const next = document.createElement('li');
+    next.className = 'page-item';
+    next.innerHTML = `<a class="page-link" href="#">Вперёд</a>`;
+    next.onclick = (e) => { e.preventDefault(); loadPartners(currentPage + 1, document.getElementById('search-input').value); };
+    pag.appendChild(prev); pag.appendChild(next);
+  }
+
+  function openCreate() {
+    document.getElementById('form-tg-id').value = '';
+    document.getElementById('form-phone').value = '';
+    document.getElementById('form-payout-percent').value = '';
+    document.getElementById('form-ref-code').value = '';
+    document.getElementById('form-slug').value = '';
+    new bootstrap.Modal(document.getElementById('partnerModal')).show();
+  }
+
+  async function openEdit(partnerId) {
+    // Попробуем найти по id через список на странице (упрощённо)
+    const row = [...document.querySelectorAll('#partners-tbody tr')].find(tr => tr.firstChild && tr.firstChild.textContent == partnerId);
+    if (!row) return;
+    document.getElementById('form-tg-id').value = row.children[2].textContent || '';
+    document.getElementById('form-phone').value = row.children[3].textContent || '';
+    document.getElementById('form-payout-percent').value = row.children[5].textContent || '';
+    document.getElementById('form-ref-code').value = row.children[6].textContent || '';
+    document.getElementById('form-slug').value = row.children[7].textContent || '';
+    document.getElementById('save-partner-btn').setAttribute('data-edit-id', partnerId);
+    new bootstrap.Modal(document.getElementById('partnerModal')).show();
+  }
+
+  function openDelete(id) {
+    deleteTargetId = id;
+    document.getElementById('confirmModalBody').textContent = `Удалить партнёра #${id}?`;
+    new bootstrap.Modal(document.getElementById('confirmModal')).show();
+  }
+
+  async function savePartner() {
+    const payload = {
+      tg_id: document.getElementById('form-tg-id').value ? Number(document.getElementById('form-tg-id').value) : null,
+      phone: document.getElementById('form-phone').value || null,
+      payout_percent: document.getElementById('form-payout-percent').value ? Number(document.getElementById('form-payout-percent').value) : null,
+      referral_code: document.getElementById('form-ref-code').value || null,
+      slug: document.getElementById('form-slug').value || null,
+    };
+    const editId = document.getElementById('save-partner-btn').getAttribute('data-edit-id');
+    const method = editId ? 'PUT' : 'POST';
+    const url = editId ? `/partners/api/${editId}` : `/partners/api`;
+    const resp = await authFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (resp.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('partnerModal')).hide();
+      document.getElementById('save-partner-btn').removeAttribute('data-edit-id');
+      await loadPartners(currentPage, document.getElementById('search-input').value);
+      showNotification('Сохранено', 'success');
+    } else {
+      let msg = 'Ошибка сохранения';
+      try { const j = await resp.json(); if (j && j.detail) msg = j.detail; } catch(e) {}
+      showNotification(msg, 'danger');
+    }
+  }
+
+  async function deletePartner() {
+    if (!deleteTargetId) return;
+    const resp = await authFetch(`/partners/api/${deleteTargetId}`, { method: 'DELETE' });
+    if (resp.status === 204) {
+      bootstrap.Modal.getInstance(document.getElementById('confirmModal')).hide();
+      await loadPartners(currentPage, document.getElementById('search-input').value);
+      showNotification('Удалено', 'success');
+    } else {
+      showNotification('Ошибка удаления', 'danger');
+    }
+    deleteTargetId = null;
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadPartners();
+    document.getElementById('refresh-btn').addEventListener('click', () => loadPartners(currentPage, document.getElementById('search-input').value));
+    document.getElementById('add-partner-btn').addEventListener('click', openCreate);
+    document.getElementById('save-partner-btn').addEventListener('click', savePartner);
+    document.getElementById('confirmDeleteBtn').addEventListener('click', deletePartner);
+    document.getElementById('search-btn').addEventListener('click', () => loadPartners(1, document.getElementById('search-input').value));
+    document.getElementById('reset-btn').addEventListener('click', () => { document.getElementById('search-input').value=''; loadPartners(1, ''); });
+  });
+</script>
+{% endblock %}
