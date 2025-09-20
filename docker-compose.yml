@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: masterbot
       POSTGRES_PASSWORD: masterbot
     ports:
-      - "5432:5432"
+      - "82.115.43.200:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -15,7 +15,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-      
+
   bot:
     build: .
     command: sh -c "python scripts/wait_for_db.py && sh scripts/entrypoint_bot.sh"
@@ -49,7 +49,7 @@ services:
       - .env
     volumes:
       - .:/app
-      
+
 volumes:
   pgdata:
   models_cache:
