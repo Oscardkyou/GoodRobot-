@@ -20,7 +20,6 @@ def role_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="Я клиент", callback_data="role:client"),
             InlineKeyboardButton(text="Я мастер", callback_data="role:master"),
         ],
-        [InlineKeyboardButton(text="Я партнёр", callback_data="role:partner")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 

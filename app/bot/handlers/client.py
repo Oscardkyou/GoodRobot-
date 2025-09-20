@@ -27,6 +27,7 @@ from app.bot.keyboards import (
 from app.bot.states import ClientActions, OrderCreate
 from app.models import Bid, Order, Partner, User
 from core.db import SessionFactory
+from core.config import get_settings
 from app.services.assignments import (
     AssignmentError,
     select_bid as service_select_bid,
@@ -102,8 +103,14 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     # Check for referral code in start command
     args = message.text.split()
     referral_code = None
+    partner_invite = None
     if len(args) > 1:
-        referral_code = args[1]
+        arg = args[1]
+        # Superadmin partner onboarding deep-link: PARTNER-<CODE>
+        if arg.upper().startswith("PARTNER-"):
+            partner_invite = arg.split("PARTNER-", 1)[1]
+        else:
+            referral_code = arg
 
     logger.info("client_cmd:start", extra={"user_id": tg_id, "has_ref": bool(referral_code)})
     async with SessionFactory() as session:
@@ -132,6 +139,32 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
                     )
                 except Exception:
                     pass
+
+        # Handle partner onboarding only via superadmin invite
+        settings = get_settings()
+        if partner_invite and settings.partner_invite_code and partner_invite == settings.partner_invite_code:
+            # Assign partner role and ensure Partner record
+            user.role = "partner"
+            await session.commit()
+            partner = (await session.execute(
+                select(Partner).where(Partner.user_id == user.id)
+            )).scalars().first()
+            if not partner:
+                partner = Partner(
+                    user_id=user.id,
+                    slug=f"partner_{user.tg_id}",
+                    referral_code=f"REF{user.tg_id:08d}"
+                )
+                session.add(partner)
+                await session.commit()
+            # Show partner menu and stop
+            from app.bot.keyboards import partner_main_menu_keyboard
+            await state.clear()
+            await message.answer(
+                "🤝 Вы подтверждены как партнёр. Добро пожаловать!",
+                reply_markup=partner_main_menu_keyboard()
+            )
+            return
 
     await state.clear()
     await message.answer(
@@ -172,28 +205,10 @@ async def choose_role(callback: CallbackQuery, state: FSMContext) -> None:
         )
         await state.clear()
     elif role == "partner":
-        # Create partner record if not exists
-        async with SessionFactory() as session:
-            user = (await session.execute(select(User).where(User.tg_id == tg_id))).scalars().first()
-            partner = (await session.execute(
-                select(Partner).where(Partner.user_id == user.id)
-            )).scalars().first()
-            if not partner:
-                partner = Partner(
-                    user_id=user.id,
-                    slug=f"partner_{user.tg_id}",
-                    referral_code=f"REF{user.tg_id:08d}"
-                )
-                session.add(partner)
-                await session.commit()
-
-        from app.bot.keyboards import partner_main_menu_keyboard
+        # Block partner selection via menu
         await callback.message.edit_text(
-            "🤝 Отлично! Вы партнер. Ниже меню для работы."
-        )
-        await callback.message.answer(
-            "Главное меню партнера:",
-            reply_markup=partner_main_menu_keyboard()
+            "Роль партнёра доступна только по приглашению администратора. "
+            "Попросите у администратора персональную ссылку."
         )
     await callback.answer()
 

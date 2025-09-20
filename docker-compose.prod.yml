@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-masterbot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-masterbot}
     ports:
-      - "5432:5432"
+      - "82.115.43.200:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     postgres_user: str = Field("masterbot", alias="POSTGRES_USER")
     postgres_password: str = Field("masterbot", alias="POSTGRES_PASSWORD")
 
+    # Partner onboarding (superadmin invite)
+    partner_invite_code: str | None = Field(None, alias="PARTNER_INVITE_CODE")
+
     # Admin settings
     @property
     def database_url(self) -> str:
