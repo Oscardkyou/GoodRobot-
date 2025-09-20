@@ -1,28 +1,29 @@
-"""Simple local AI implementation using DistilGPT-2 (CPU-friendly).
+"""Simple local AI implementation using FLAN-T5 (instruction-tuned, CPU-friendly).
 
-Replaces external Gemini API with a lightweight local model suitable
-for low-resource servers (2 CPU / 2GB RAM). Public interface remains the same
-to avoid changes in other modules:
+Public interface remains the same to avoid changes in other modules:
 - class GeminiAI with .initialize() and .get_response(prompt)
 - function get_ai_response(user_input: str, use_gemini: bool = True)
 """
 import logging
 from typing import Optional
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+import os
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 
 logger = logging.getLogger(__name__)
 
 class GeminiAI:
-    """Local CPU-friendly text generator wrapper (DistilGPT-2).
+    """Local CPU-friendly text generator wrapper based on FLAN-T5.
 
-    Keeps the same name for backward compatibility with existing imports.
+    Keeps the old class name for backward compatibility.
     """
 
-    def __init__(self, model_name: str = "distilgpt2", max_new_tokens: int = 120):
-        self.model_name = model_name
-        self.max_new_tokens = max_new_tokens
-        self._pipe = None  # lazy-initialized text-generation pipeline
+    def __init__(self, model_name: str | None = None, max_new_tokens: int | None = None):
+        # Allow configuring via env
+        self.model_name = model_name or os.getenv("AI_MODEL_NAME", "google/flan-t5-base")
+        # flan-t5-small is ~80MB weights; flan-t5-base ~250MB; choose per server resources
+        self.max_new_tokens = int(os.getenv("AI_MAX_NEW_TOKENS", str(max_new_tokens or 120)))
+        self._pipe = None  # lazy-initialized text2text-generation pipeline
 
     def initialize(self) -> None:
         """Lazy-load the text-generation pipeline.
@@ -33,14 +34,14 @@ class GeminiAI:
             return
         try:
             tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            model = AutoModelForCausalLM.from_pretrained(self.model_name)
+            model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name)
             self._pipe = pipeline(
-                "text-generation",
+                "text2text-generation",
                 model=model,
                 tokenizer=tokenizer,
                 device=-1,  # CPU
             )
-            logger.info("DistilGPT-2 pipeline initialized on CPU")
+            logger.info("FLAN-T5 pipeline initialized on CPU: %s", self.model_name)
         except Exception as e:
             logger.error(f"Ошибка инициализации локальной модели: {e}")
             self._pipe = None
@@ -61,17 +62,12 @@ class GeminiAI:
             outputs = self._pipe(
                 prompt,
                 max_new_tokens=self.max_new_tokens,
-                do_sample=True,
-                top_k=50,
-                top_p=0.95,
-                temperature=0.7,
-                num_return_sequences=1,
-                pad_token_id=self._pipe.tokenizer.eos_token_id,
+                do_sample=False,  # deterministic
+                num_beams=1,
+                early_stopping=True,
             )
             text = outputs[0]["generated_text"]
-            # Return only the continuation after the prompt if present
-            if text.startswith(prompt):
-                text = text[len(prompt):].lstrip()
+            # For text2text-generation, HF returns "generated_text" directly without the prompt
             text = _sanitize_text(text)
             # Trim to 200 chars for Telegram UX
             if len(text) > 200:

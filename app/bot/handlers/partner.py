@@ -12,7 +12,7 @@ from aiogram.types import (
 )
 from sqlalchemy import func, select
 
-from app.bot.keyboards import main_menu_keyboard
+from app.bot.keyboards import partner_main_menu_keyboard
 from app.models import Order, Partner, Payout, User
 from core.db import SessionFactory
 
@@ -28,7 +28,7 @@ async def cmd_menu(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer(
         "Главное меню партнера:",
-        reply_markup=main_menu_keyboard()
+        reply_markup=partner_main_menu_keyboard()
     )
 
 

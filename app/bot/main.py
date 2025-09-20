@@ -13,6 +13,7 @@ from app.bot.handlers import chat
 from app.bot.handlers import ai_assistant
 from app.bot.logging_setup import configure_logging
 from app.bot.middlewares.logging_middleware import LoggingMiddleware
+from app.ai_agent.simple_ai import GeminiAI
 
 
 def register_handlers() -> None:
@@ -31,6 +32,12 @@ async def main() -> None:  # pragma: no cover
     configure_logging()
     dp.update.middleware(LoggingMiddleware(logging.getLogger("bot")))
     register_handlers()
+
+    # Warm up local AI model to avoid slow/poor first response
+    try:
+        await asyncio.to_thread(GeminiAI().initialize)
+    except Exception as e:
+        logging.getLogger("bot").warning("AI warm-up failed: %s", e)
 
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_my_commands([

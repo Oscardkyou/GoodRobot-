@@ -24,8 +24,16 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      # Hugging Face/Transformers cache to avoid re-downloading models
+      HF_HOME: /models_cache
+      TRANSFORMERS_CACHE: /models_cache
+      # Configure local AI model (instruction-tuned)
+      AI_MODEL_NAME: ${AI_MODEL_NAME:-google/flan-t5-base}
+      AI_MAX_NEW_TOKENS: ${AI_MAX_NEW_TOKENS:-120}
     volumes:
       - .:/app
+      - models_cache:/models_cache
 
   admin:
     build:
@@ -44,3 +52,4 @@ services:
       
 volumes:
   pgdata:
+  models_cache:
