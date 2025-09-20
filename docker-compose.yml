@@ -1,4 +1,3 @@
-version: '3.9'
 services:
   postgres:
     image: postgres:16
@@ -6,8 +5,6 @@ services:
       POSTGRES_DB: masterbot
       POSTGRES_USER: masterbot
       POSTGRES_PASSWORD: masterbot
-    ports:
-      - "82.115.43.200:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
