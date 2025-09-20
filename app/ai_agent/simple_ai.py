@@ -72,6 +72,7 @@ class GeminiAI:
             # Return only the continuation after the prompt if present
             if text.startswith(prompt):
                 text = text[len(prompt):].lstrip()
+            text = _sanitize_text(text)
             # Trim to 200 chars for Telegram UX
             if len(text) > 200:
                 text = text[:200] + "..."
@@ -79,6 +80,47 @@ class GeminiAI:
         except Exception as e:
             logger.error(f"Ошибка генерации локальной модели: {e}")
             return None
+
+def _sanitize_text(text: str) -> str:
+    """Clean up LLM output: remove excessive repeats and artifacts."""
+    import re
+    s = text.strip()
+    # Remove leading markers like "Ответ:" or "Assistant:"
+    s = re.sub(r"^(Ответ|Assistant|Bot)\s*:\s*", "", s, flags=re.IGNORECASE)
+
+    # Collapse 3+ repeated punctuation
+    s = re.sub(r"([!?.,])\1{2,}", r"\1\1", s)
+    # Remove long runs of the same short word
+    s = re.sub(r"\b(\w{1,3})\b(\s+\1\b){2,}", r"\1", s, flags=re.IGNORECASE)
+
+    # Sentence-level de-duplication for short sentences like "Что?"
+    parts = re.split(r"(\s*[!?\.]+\s*)", s)  # keep delimiters
+    rebuilt: list[str] = []
+    last_short_norm: str | None = None
+
+    def norm_sent(x: str) -> str:
+        return re.sub(r"\s+", " ", x.strip().lower())
+
+    i = 0
+    while i < len(parts):
+        sent = parts[i]
+        delim = parts[i + 1] if i + 1 < len(parts) else ""
+        full = (sent + (delim or "")).strip()
+        if full:
+            sent_norm = norm_sent(full)
+            # consider short if <= 12 chars or <= 2 words
+            is_short = len(sent_norm) <= 12 or len(sent_norm.split()) <= 2
+            if is_short and last_short_norm == sent_norm:
+                # skip consecutive duplicate
+                pass
+            else:
+                rebuilt.append(full)
+            last_short_norm = sent_norm if is_short else None
+        i += 2
+
+    s = " ".join(rebuilt).strip()
+    return s
+
 
 def get_ai_response(user_input: str, use_gemini: bool = True) -> str:
     """Сгенерировать ответ локально (DistilGPT-2).
@@ -91,9 +133,19 @@ def get_ai_response(user_input: str, use_gemini: bool = True) -> str:
         gemini = GeminiAI()
         gemini.initialize()
 
+        # If input is too short or non-informative, ask a clarifying question
+        short = len(user_input.strip()) < 5
+        if short or user_input.strip().lower() in {"что", "что?", "??", "помощь", "help"}:
+            return (
+                "Чем могу помочь? Кратко опишите задачу: что нужно сделать, где и когда. "
+                "Например: ‘Сантехник для замены смесителя, Алматы, сегодня вечером’."
+            )
+
         prompt = (
-            "Вы — помощник сервиса поиска мастеров. Ответьте кратко и по делу.\n"
-            f"Вопрос: {user_input}\n"
+            "Ты — понятный и вежливый ассистент сервиса GoodRobot по поиску мастеров. "
+            "Отвечай коротко (1–3 предложения), по делу, без воды. Если спрашивают про сервис, "
+            "объясни как создать заявку, как выбрать мастера и как происходит оплата.\n\n"
+            f"Вопрос пользователя: {user_input}\n"
             "Ответ:"
         )
 
@@ -104,7 +156,14 @@ def get_ai_response(user_input: str, use_gemini: bool = True) -> str:
                 "Попробуйте задать более конкретный вопрос."
             )
 
-        return generated_text
+        cleaned = _sanitize_text(generated_text)
+        # If still low-signal after cleaning, provide structured fallback
+        if len(cleaned) < 5:
+            return (
+                "Не совсем понимаю запрос. Уточните, пожалуйста: категорию работ, адрес и удобное время. "
+                "Например: ‘Электрик, замена розетки, завтра 10:00’."
+            )
+        return cleaned
     except Exception as e:
         logger.error(f"Ошибка генерации ответа: {e}")
         return "Извините, в настоящее время у меня технические трудности. Попробуйте позже."

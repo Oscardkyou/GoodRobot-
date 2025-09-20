@@ -67,7 +67,6 @@ async def test_create_and_delete_master():
             "role": "master",
             "is_active": True,
             "password": "MasterP@ss1",
-            "telegram_id": random.randint(10_000_000, 99_999_999),
             "zones": [1, 2],
         }
         create_resp = await client.post("/masters/api", json=payload, headers=headers)

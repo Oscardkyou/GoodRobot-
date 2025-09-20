@@ -120,6 +120,18 @@ def master_main_menu_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def partner_main_menu_keyboard() -> ReplyKeyboardMarkup:
+    """Меню партнера с основными действиями."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📊 Дашборд"), KeyboardButton(text="🔗 Реферальная ссылка")],
+            [KeyboardButton(text="💳 Выплаты"), KeyboardButton(text="👨‍🔧 Профиль")],
+            [KeyboardButton(text="❓ Помощь")],
+        ],
+        resize_keyboard=True
+    )
+
+
 def partner_dashboard_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура для партнерского дашборда."""
     keyboard = InlineKeyboardMarkup(

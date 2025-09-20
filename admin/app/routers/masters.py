@@ -1,4 +1,5 @@
 import logging
+import random
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -87,7 +88,8 @@ async def create_master(
 ):
     """Создает нового мастера с возможностью назначения специальностей (оптимизировано)"""
     # Извлекаем данные из запроса
-    telegram_id = user_data.get('telegram_id')
+    # Telegram ID убран из UI и не обязателен для мастера, создаваемого через админку
+    telegram_id = None
     username = user_data.get('username')
     full_name = user_data.get('full_name')
     phone = user_data.get('phone')
@@ -96,8 +98,6 @@ async def create_master(
 
     # Оптимизированная проверка уникальности - один запрос вместо трех
     conditions = []
-    if telegram_id:
-        conditions.append(User.tg_id == telegram_id)
     if username:
         conditions.append(User.username == username)
     if phone:
@@ -112,12 +112,7 @@ async def create_master(
 
         if existing_user:
             # Определяем, какое поле конфликтует
-            if telegram_id and existing_user.tg_id == telegram_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Пользователь с таким Telegram ID уже существует"
-                )
-            elif username and existing_user.username == username:
+            if username and existing_user.username == username:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Пользователь с таким username уже существует"
@@ -129,11 +124,14 @@ async def create_master(
                 )
 
     # Создаем нового мастера
+    # Генерируем суррогатный уникальный tg_id для совместимости со схемой БД
+    surrogate_tg_id = 10_000_000_000 + random.randint(1, 900_000_000)
+
     new_master = User(
         username=username,
         name=full_name,
         phone=phone,
-        tg_id=telegram_id,
+        tg_id=surrogate_tg_id,
         role="master",
         is_active=True
     )
@@ -165,7 +163,7 @@ async def create_master(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Нарушение уникальности: Telegram ID, username или телефон уже существуют"
+            detail="Нарушение уникальности: username или телефон уже существуют"
         )
 
     # Выставляем алиасы атрибутов для корректного ответа схемы

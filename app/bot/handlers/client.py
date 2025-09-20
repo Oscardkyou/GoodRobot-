@@ -187,12 +187,13 @@ async def choose_role(callback: CallbackQuery, state: FSMContext) -> None:
                 session.add(partner)
                 await session.commit()
 
+        from app.bot.keyboards import partner_main_menu_keyboard
         await callback.message.edit_text(
-            "🤝 Отлично! Вы партнер. Используйте команды:\n"
-            "/partner_dashboard - ваш дашборд\n"
-            "/partner_link - реферальная ссылка\n"
-            "/partner_stats - статистика\n"
-            "/partner_payouts - история выплат"
+            "🤝 Отлично! Вы партнер. Ниже меню для работы."
+        )
+        await callback.message.answer(
+            "Главное меню партнера:",
+            reply_markup=partner_main_menu_keyboard()
         )
     await callback.answer()
 

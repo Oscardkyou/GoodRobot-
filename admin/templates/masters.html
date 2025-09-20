@@ -47,7 +47,6 @@
         <thead>
             <tr>
                 <th scope="col">#</th>
-                <th scope="col">Telegram ID</th>
                 <th scope="col">Имя пользователя</th>
                 <th scope="col">ФИО</th>
                 <th scope="col">Телефон</th>
@@ -59,7 +58,7 @@
         </thead>
         <tbody id="masters-table">
             <tr>
-                <td colspan="9" class="text-center">Загрузка данных...</td>
+                <td colspan="8" class="text-center">Загрузка данных...</td>
             </tr>
         </tbody>
     </table>
@@ -106,10 +105,6 @@
             </div>
             <div class="modal-body">
                 <form id="add-master-form">
-                    <div class="mb-3">
-                        <label for="master-telegram-id" class="form-label">Telegram ID</label>
-                        <input type="number" class="form-control" id="master-telegram-id" required>
-                    </div>
                     <div class="mb-3">
                         <label for="master-username" class="form-label">Имя пользователя</label>
                         <input type="text" class="form-control" id="master-username" required>
@@ -178,7 +173,7 @@
                 tbody.innerHTML = '';
                 
                 if (masters.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="9" class="text-center">Нет данных</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center">Нет данных</td></tr>';
                     return;
                 }
                 
@@ -186,7 +181,6 @@
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td>${master.id}</td>
-                        <td>${master.telegram_id}</td>
                         <td>${master.username || '-'}</td>
                         <td>${master.full_name || '-'}</td>
                         <td>${master.phone || '-'}</td>
@@ -401,7 +395,6 @@
     async function addMaster() {
         try {
             const token = localStorage.getItem('token');
-            const telegramId = document.getElementById('master-telegram-id').value;
             const username = document.getElementById('master-username').value;
             const fullName = document.getElementById('master-fullname').value;
             const phone = document.getElementById('master-phone').value;
@@ -415,12 +408,6 @@
             // Преобразуем строку с зонами в массив чисел
             const zones = zonesInput ? zonesInput.split(',').map(zone => parseInt(zone.trim())) : [];
             
-            // Валидация Telegram ID
-            if (!telegramId || isNaN(parseInt(telegramId))) {
-                alert('Укажите корректный Telegram ID (число)');
-                return;
-            }
-
             const response = await fetch('/masters/api', {
                 method: 'POST',
                 headers: {
@@ -428,7 +415,6 @@
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    telegram_id: parseInt(telegramId),
                     username: username,
                     full_name: fullName,
                     phone: phone,
