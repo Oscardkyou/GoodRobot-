@@ -5,9 +5,9 @@ Public interface remains the same to avoid changes in other modules:
 - function get_ai_response(user_input: str, use_gemini: bool = True)
 
 Behavior:
-- If GOOGLE_API_KEY or API_GEMINI_FREE is set, uses Gemini (default: ``gemini-2.0-flash``)
-- Otherwise falls back to local HF text2text model (default: ``cointegrated/rut5-base-multitask``)
-- Answers are short by design: limit via AI_MAX_NEW_TOKENS (default 60)
+- Если задан `API_GEMINI_FREE`, используется Gemini (по умолчанию ``gemini-2.0-flash``)
+- Иначе используется локальная HF text2text модель (по умолчанию ``cointegrated/rut5-base-multitask``)
+- Ответы короткие по умолчанию: лимит через AI_MAX_NEW_TOKENS (по умолчанию 60)
 """
 import logging
 from typing import Optional
@@ -30,8 +30,8 @@ class GeminiAI:
     """
 
     def __init__(self, model_name: str | None = None, max_new_tokens: int | None = None):
-        # Env-configurable
-        self.gemini_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("API_GEMINI_FREE")
+        # Env-configurable: используем только API_GEMINI_FREE (без алиасов)
+        self.gemini_api_key = os.getenv("API_GEMINI_FREE")
         self.model_name = (
             model_name
             or os.getenv("GEMINI_MODEL_NAME")

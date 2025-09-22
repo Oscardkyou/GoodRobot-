@@ -8,13 +8,13 @@ WORKDIR /app
 
 # System deps (libpq for Postgres client libs). Keep minimal.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev build-essential curl \
+    libpq-dev build-essential curl libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first (better layer caching)
 COPY requirements.txt ./
-RUN pip install --no-cache-dir --upgrade pip wheel \
-    && pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && python -m pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
 # Copy project
 COPY . .

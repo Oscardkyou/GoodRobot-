@@ -70,11 +70,8 @@ curl "https://api.telegram.org/bot$BOT_TOKEN/deleteWebhook"
 Переменные окружения (см. `.env.example`):
 
 ```ini
-# Рекомендуется
-GOOGLE_API_KEY=your_gemini_api_key_here
-
-# Для обратной совместимости (если уже используется)
-# API_GEMINI_FREE=your_gemini_api_key_here
+# Ключ Gemini (канонично)
+API_GEMINI_FREE=your_gemini_api_key_here
 
 # Модель Gemini по умолчанию
 GEMINI_MODEL_NAME=gemini-2.0-flash
