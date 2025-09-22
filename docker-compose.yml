@@ -32,6 +32,13 @@ services:
       AI_MODEL_NAME: ${AI_MODEL_NAME:-cointegrated/rut5-base-multitask}
       # Короткие ответы по умолчанию
       AI_MAX_NEW_TOKENS: ${AI_MAX_NEW_TOKENS:-60}
+      # DB override for Docker network
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: masterbot
+      POSTGRES_USER: masterbot
+      POSTGRES_PASSWORD: masterbot
+      DATABASE_URL: postgresql+asyncpg://masterbot:masterbot@postgres:5432/masterbot
     volumes:
       - .:/app
       - models_cache:/models_cache
@@ -48,6 +55,14 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      # DB override for Docker network
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: masterbot
+      POSTGRES_USER: masterbot
+      POSTGRES_PASSWORD: masterbot
+      DATABASE_URL: postgresql+asyncpg://masterbot:masterbot@postgres:5432/masterbot
     volumes:
       - .:/app
 
