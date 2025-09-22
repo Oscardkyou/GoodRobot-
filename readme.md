@@ -63,6 +63,51 @@ python -m app.bot.main
 curl "https://api.telegram.org/bot$BOT_TOKEN/deleteWebhook"
 ```
 
+## AI: Gemini 2.0 (короткие ответы) + локальный фоллбек
+
+Бот использует облачную модель Gemini 2.0 (по умолчанию `gemini-2.0-flash`) и автоматически переключается на локальную HF-модель (CPU), если ключ не задан или сервис недоступен.
+
+Переменные окружения (см. `.env.example`):
+
+```ini
+# Рекомендуется
+GOOGLE_API_KEY=your_gemini_api_key_here
+
+# Для обратной совместимости (если уже используется)
+# API_GEMINI_FREE=your_gemini_api_key_here
+
+# Модель Gemini по умолчанию
+GEMINI_MODEL_NAME=gemini-2.0-flash
+
+# Локальная модель-фоллбек
+AI_MODEL_NAME=cointegrated/rut5-base-multitask
+
+# Короткие ответы (по умолчанию 60 токенов)
+AI_MAX_NEW_TOKENS=60
+```
+
+Важно:
+- Никогда не коммитьте `.env` c реальными секретами. Используйте `.env.example` как шаблон.
+- Если `.env` попал в git-историю, выполните `git rm --cached .env` и смените ключи (ротация токенов).
+- Ответы намеренно краткие (1–2 предложения) для удобства в Telegram.
+
+## Запуск админки (Streamlit)
+
+Для запуска админ-панели на базе Streamlit выполните следующие команды:
+
+```bash
+# Активация виртуального окружения
+source venv/bin/activate
+
+# Установка зависимостей (если ещё не установлены)
+pip install streamlit pandas plotly
+
+# Запуск админки
+streamlit run admin_streamlit/app.py
+```
+
+После запуска админ-панель будет доступна по адресу http://localhost:8501
+
 ## Структура проекта
 ```
 app/
@@ -73,6 +118,10 @@ app/
     main.py
   models/
     __init__.py, user.py, order.py, bid.py, rating.py, partner.py, payout.py
+admin_streamlit/  # Новая админка на Streamlit
+  app.py          # Основной файл приложения
+  pages/          # Страницы админки
+  utils/          # Утилиты для админки
 core/
   config.py
   db.py
@@ -92,10 +141,11 @@ requirements.txt
 
 ## Дорожная карта
 - [x] Роли, заявки, зоны мастеров, ставки
+- [x] Админ-панель (Streamlit)
 - [ ] Окно ставок (2 минуты) и выбор мастера клиентом
 - [ ] Завершение заказа и расчёт `Payout` (85/10/5)
 - [ ] Рейтинг и отзывы
-- [ ] Админ-панель (FastAPI) и вебхуки
+- [ ] Вебхуки
 
 ## Ветки и процесс разработки
 - `main` — стабильные релизы

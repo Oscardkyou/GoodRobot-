@@ -220,3 +220,4 @@ dump.rdb
 mutants/
 mutation_tests/
 tests/mutation_suite.py
+backup/
